@@ -8,7 +8,7 @@ import openpyxl
 from schemas_multimodal import MultimodalExtractResponse
 from services.llm import call_claude_json, call_claude_vision_json
 
-router = APIRouter(prefix="/api/v1/multimodal", tags=["multimodal"])
+router = APIRouter(prefix="/multimodal", tags=["multimodal"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)

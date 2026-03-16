@@ -1,7 +1,8 @@
 // PDF Reader Page — /papers/:id/read
 import { streamAI, renderMarkdown } from '../utils/stream.js';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
 
 export function renderPaperReaderPage(params) {
   return `
@@ -24,16 +25,16 @@ export function renderPaperReaderPage(params) {
       </div>
 
       <!-- Main Content -->
-      <div style="display:flex;flex:1;overflow:hidden;">
+      <div class="reader-layout" style="display:flex;flex:1;overflow:hidden;">
         <!-- PDF Viewer -->
-        <div id="pdf-container" style="flex:1;overflow-y:auto;padding:20px;background:rgba(0,0,0,0.02);display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div id="pdf-container" class="reader-pdf" style="flex:1;overflow-y:auto;padding:20px;background:rgba(0,0,0,0.02);display:flex;flex-direction:column;align-items:center;gap:8px;">
           <div id="pdf-loading" style="text-align:center;padding:60px;color:var(--text-muted);">
             正在加载 PDF 阅读器...
           </div>
         </div>
 
         <!-- Summary Sidebar -->
-        <div style="width:360px;border-left:1px solid rgba(0,0,0,0.06);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;">
+        <div class="reader-sidebar" style="width:360px;border-left:1px solid rgba(0,0,0,0.06);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;">
           <div style="padding:16px 20px;border-bottom:1px solid rgba(0,0,0,0.06);">
             <h3 style="color:var(--text-primary);font-size:1rem;font-weight:600;">阅读概要</h3>
             <p id="pages-read-count" style="color:var(--text-muted);font-size:0.8rem;margin-top:4px;">已读 0 页</p>
@@ -55,7 +56,7 @@ export function renderPaperReaderPage(params) {
       <!-- Selection Toolbar (hidden, shown on text select) -->
       <div id="selection-toolbar" style="display:none;position:fixed;z-index:200;background:var(--glass-bg-solid);backdrop-filter:blur(20px);border:1px solid rgba(0,0,0,0.1);border-radius:12px;padding:6px;box-shadow:var(--shadow-elevated);display:none;gap:4px;">
         <button class="sel-btn" data-action="translate" style="padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text-primary);font-size:0.85rem;border-radius:8px;">翻译</button>
-        <button class="sel-btn" data-action="explain" style="padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text-primary);font-size:0.85rem;border-radius:8px;">解释</button>
+        <button class="sel-btn" data-action="summary" style="padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text-primary);font-size:0.85rem;border-radius:8px;">摘要</button>
         <button class="sel-btn" data-action="vocab" style="padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text-primary);font-size:0.85rem;border-radius:8px;">生词本</button>
         <button class="sel-btn" data-action="highlight" style="padding:6px 12px;border:none;background:none;cursor:pointer;color:var(--text-primary);font-size:0.85rem;border-radius:8px;">高亮</button>
       </div>
@@ -300,7 +301,7 @@ export async function initPaperReaderPage(params) {
         return;
       }
 
-      // Translate or Explain
+      // Translate or Summary
       const rect = btn.getBoundingClientRect();
       resultPopover.style.display = 'block';
       resultPopover.style.left = `${rect.left}px`;
@@ -309,7 +310,7 @@ export async function initPaperReaderPage(params) {
 
       const endpoint = action === 'translate'
         ? `/papers/${paperId}/translate`
-        : `/papers/${paperId}/explain-selection`;
+        : `/papers/${paperId}/summarize-selection`;
 
       try {
         await streamAI(endpoint, { text: selectedText }, (text) => {

@@ -1,54 +1,69 @@
 // Paper Library Page — /papers
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
 
 export function renderPaperPage() {
   return `
-    <div class="page-container glass-panel" style="max-width:1200px;margin:40px auto;padding:40px;border-radius:24px;">
+    <div class="papers-shell">
       <div class="page-header__badge" style="margin-bottom:12px;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:var(--glass-bg);border-radius:20px;font-size:0.85rem;color:var(--text-secondary);">
         <span class="nav-dot" style="background:var(--research);width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
         模块 · 论文库
       </div>
       <h1 style="color:var(--text-primary);font-size:2rem;font-weight:700;margin-bottom:8px;">论文库</h1>
-      <p style="color:var(--text-secondary);margin-bottom:32px;">批量导入学术论文，AI 智能解读，管理你的研究文献库。</p>
+      <p style="color:var(--text-secondary);margin-bottom:24px;">批量导入学术论文，AI 智能解读，管理你的研究文献库。</p>
 
       <!-- Import Section -->
-      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:32px;">
-        <div style="position:relative;">
-          <textarea id="paper-url-input" class="input-field textarea" rows="3"
-            placeholder="粘贴 ArXiv / Semantic Scholar 论文链接，每行一个..."
+      <div class="papers-import-grid">
+        <div class="glass-panel papers-import-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="color:var(--text-primary);font-weight:600;">批量导入链接</div>
+            <span style="color:var(--text-muted);font-size:0.8rem;">每行一个 URL</span>
+          </div>
+          <textarea id="paper-url-input" class="input-field textarea" rows="4"
+            placeholder="粘贴 ArXiv / Semantic Scholar 论文链接..."
             style="width:100%;resize:none;font-size:0.95rem;"></textarea>
+          <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+            <button class="btn btn--ghost" id="btn-clear-urls" style="font-size:0.85rem;padding:8px 14px;">清空</button>
+            <button class="btn btn--primary" id="btn-import-urls" style="font-size:0.9rem;padding:8px 18px;">批量导入</button>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <button class="btn btn--primary" id="btn-import-urls" style="height:fit-content;">
-            导入论文
-          </button>
-          <button class="btn btn--secondary" id="btn-upload-pdf" style="height:fit-content;">
-            上传 PDF
-          </button>
+        <div class="glass-panel papers-dropzone" id="pdf-dropzone">
+          <div class="papers-dropzone__icon">📎</div>
+          <div style="color:var(--text-primary);font-weight:600;">拖拽 PDF 到此处</div>
+          <div style="color:var(--text-muted);font-size:0.85rem;">支持多文件，单文件 ≤ 50MB</div>
+          <button class="btn btn--secondary" id="btn-upload-pdf" style="margin-top:8px;padding:8px 16px;">选择文件</button>
           <input type="file" id="pdf-file-input" accept=".pdf" multiple style="display:none;">
         </div>
       </div>
 
-      <!-- Tabs -->
-      <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;" id="paper-tabs">
-        <button class="btn btn--secondary paper-tab active" data-tab="all" style="font-size:0.9rem;padding:8px 16px;">全部论文</button>
-        <button class="btn btn--secondary paper-tab" data-tab="favorites" style="font-size:0.9rem;padding:8px 16px;">收藏</button>
-        <div id="collection-tabs"></div>
-        <button class="btn btn--ghost" id="btn-new-collection" style="font-size:0.85rem;padding:6px 12px;">+ 新建合集</button>
-      </div>
+      <div class="papers-main">
+        <!-- Left: Collections -->
+        <aside class="glass-panel papers-sidebar">
+          <div class="papers-sidebar__section">
+            <div class="papers-sidebar__title">筛选</div>
+            <button class="papers-nav-item active" data-tab="all">全部论文</button>
+            <button class="papers-nav-item" data-tab="favorites">收藏</button>
+          </div>
+          <div class="papers-sidebar__section">
+            <div class="papers-sidebar__title">合集</div>
+            <div id="collection-tabs" class="papers-collection-list"></div>
+            <button class="btn btn--ghost btn--sm" id="btn-new-collection" style="margin-top:10px;">+ 新建合集</button>
+          </div>
+        </aside>
 
-      <!-- Paper Grid -->
-      <div id="paper-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;">
-        <div style="text-align:center;color:var(--text-muted);padding:48px;">论文加载中...</div>
-      </div>
-
-      <!-- Pagination -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px;">
-        <span id="paper-count" style="color:var(--text-muted);font-size:0.9rem;"></span>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn--secondary" id="btn-paper-prev" style="padding:8px 16px;">上一页</button>
-          <button class="btn btn--secondary" id="btn-paper-next" style="padding:8px 16px;">下一页</button>
-        </div>
+        <!-- Right: Grid -->
+        <section class="papers-content">
+          <div class="papers-content__header">
+            <span id="paper-count" style="color:var(--text-muted);font-size:0.9rem;"></span>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn--secondary" id="btn-paper-prev" style="padding:8px 16px;">上一页</button>
+              <button class="btn btn--secondary" id="btn-paper-next" style="padding:8px 16px;">下一页</button>
+            </div>
+          </div>
+          <div id="paper-grid" class="papers-grid">
+            <div style="text-align:center;color:var(--text-muted);padding:48px;">论文加载中...</div>
+          </div>
+        </section>
       </div>
     </div>
   `;
@@ -63,12 +78,39 @@ export function initPaperPage() {
   loadCollections();
 
   document.getElementById('btn-import-urls').addEventListener('click', importUrls);
+  document.getElementById('btn-clear-urls').addEventListener('click', () => {
+    document.getElementById('paper-url-input').value = '';
+  });
   document.getElementById('btn-upload-pdf').addEventListener('click', () => {
     document.getElementById('pdf-file-input').click();
   });
   document.getElementById('pdf-file-input').addEventListener('change', (e) => {
     if (e.target.files.length > 0) uploadPdfs(e.target.files);
   });
+  const dropzone = document.getElementById('pdf-dropzone');
+  if (dropzone) {
+    dropzone.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-upload-pdf')) return;
+      document.getElementById('pdf-file-input').click();
+    });
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('is-dragover');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('is-dragover');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('is-dragover');
+      const files = Array.from(e.dataTransfer.files || []).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      if (files.length === 0) {
+        window.showToast('请拖入 PDF 文件', 'warning');
+        return;
+      }
+      uploadPdfs(files);
+    });
+  }
   document.getElementById('btn-new-collection').addEventListener('click', createCollection);
   document.getElementById('btn-paper-prev').addEventListener('click', () => {
     if (currentPage > 1) { currentPage--; loadPapers(); }
@@ -77,20 +119,31 @@ export function initPaperPage() {
     currentPage++; loadPapers();
   });
 
-  // Tab clicks
-  document.getElementById('paper-tabs').addEventListener('click', (e) => {
-    const tab = e.target.closest('.paper-tab');
+  // Nav clicks (filters + collections)
+  document.querySelector('.papers-sidebar').addEventListener('click', (e) => {
+    const tab = e.target.closest('.papers-nav-item');
     if (!tab) return;
-    document.querySelectorAll('.paper-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    currentTab = tab.dataset.tab;
-    currentPage = 1;
-    loadPapers();
+    setActiveTab(tab.dataset.tab);
   });
 
   // Start polling for processing papers
   pollTimer = setInterval(checkProcessingPapers, 5000);
   window.__paperPollTimer = pollTimer;
+}
+
+function setActiveTab(tab, shouldReload = true) {
+  currentTab = tab;
+  updateActiveNav();
+  if (shouldReload) {
+    currentPage = 1;
+    loadPapers();
+  }
+}
+
+function updateActiveNav() {
+  document.querySelectorAll('.papers-nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === currentTab);
+  });
 }
 
 // Cleanup polling on page leave
@@ -221,8 +274,9 @@ async function loadCollections() {
     const container = document.getElementById('collection-tabs');
     if (container) {
       container.innerHTML = cols.map(c =>
-        `<button class="btn btn--secondary paper-tab" data-tab="${c.id}" style="font-size:0.9rem;padding:8px 16px;">${escapeHtml(c.name)}</button>`
+        `<button class="papers-nav-item" data-tab="${c.id}">${escapeHtml(c.name)}</button>`
       ).join('');
+      updateActiveNav();
     }
   } catch (e) {
     console.error('Failed to load collections:', e);

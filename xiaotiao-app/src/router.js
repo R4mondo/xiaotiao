@@ -24,12 +24,27 @@ export class Router {
   }
 
   resolve() {
-    const hash = window.location.hash.slice(1) || '/';
+    const rawHash = window.location.hash.slice(1) || '/';
+    const hashPath = rawHash.split('?')[0] || '/';
+    const normalized = hashPath.replace(/\/+$/, '') || '/';
     let matched = null;
     let params = {};
 
+    // Page-level cleanup hooks (if any)
+    const cleanupFns = [
+      window.__paperCleanup,
+      window.__readerCleanup,
+      window.__trackerCleanup,
+      window.__topicQuickAddCleanup
+    ];
+    cleanupFns.forEach(fn => {
+      if (typeof fn === 'function') {
+        try { fn(); } catch (_e) {}
+      }
+    });
+
     for (const route of this.routes) {
-      const m = hash.match(route.regex);
+      const m = normalized.match(route.regex);
       if (m) {
         matched = route;
         route.paramNames.forEach((name, i) => {
@@ -48,7 +63,7 @@ export class Router {
     if (matched && this.container) {
       this.container.innerHTML = matched.renderer(params);
       if (matched.init) matched.init(params);
-      this.updateNavLinks(hash);
+      this.updateNavLinks(normalized);
     }
   }
 

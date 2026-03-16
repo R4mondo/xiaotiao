@@ -1,7 +1,8 @@
 // Paper Detail Page — /papers/:id
 import { streamAI, renderMarkdown } from '../utils/stream.js';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
 
 export function renderPaperDetailPage(params) {
   return `
@@ -51,6 +52,9 @@ export function renderPaperDetailPage(params) {
                 style="flex:1;font-size:0.9rem;" />
               <button class="btn btn--primary" id="btn-chat-send" style="padding:8px 16px;">发送</button>
             </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+              <button class="btn btn--ghost btn--sm" id="btn-chat-add-vocab">+ 加入生词本</button>
+            </div>
           </div>
 
           <!-- Annotations Panel (hidden by default) -->
@@ -68,6 +72,7 @@ export function renderPaperDetailPage(params) {
 export async function initPaperDetailPage(params) {
   const paperId = params.id;
   if (!paperId) return;
+  let lastAssistantText = '';
 
   // Load paper data
   try {
@@ -78,6 +83,12 @@ export async function initPaperDetailPage(params) {
     renderInsight(paper);
     renderChatHistory(paper.chats || []);
     loadAnnotations(paperId);
+    if (paper.chats && paper.chats.length > 0) {
+      const last = [...paper.chats].reverse().find(c => c.role === 'assistant');
+      if (last && last.content) {
+        lastAssistantText = last.content;
+      }
+    }
   } catch (e) {
     document.getElementById('paper-header').innerHTML = `<div style="color:#ef4444;">加载失败: ${e.message}</div>`;
   }
@@ -97,6 +108,25 @@ export async function initPaperDetailPage(params) {
   document.getElementById('btn-chat-send').addEventListener('click', () => sendChat(paperId));
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(paperId); }
+  });
+
+  document.getElementById('btn-chat-add-vocab').addEventListener('click', () => {
+    if (!lastAssistantText) {
+      window.showToast('暂无可加入的内容', 'warning');
+      return;
+    }
+    const selection = window.getSelection();
+    let picked = '';
+    if (selection && selection.toString().trim()) {
+      const anchor = selection.anchorNode;
+      const chatBox = document.getElementById('chat-messages');
+      if (anchor && chatBox && chatBox.contains(anchor)) {
+        picked = selection.toString().trim();
+      }
+    }
+    const base = picked || lastAssistantText;
+    const word = base.split(/\s+/).slice(0, 4).join(' ');
+    addToVocab(word);
   });
 
   // Quick questions
@@ -161,7 +191,7 @@ async function generateInsight(paperId) {
   container.innerHTML = `<div style="color:var(--text-muted);">正在生成 AI 解读...</div>`;
 
   try {
-    await streamAI(`/papers/${paperId}/explain`, {}, (text) => {
+    await streamAI(`/papers/${paperId}/insight`, {}, (text) => {
       container.innerHTML = renderMarkdown(text);
     });
   } catch (e) {
@@ -182,17 +212,51 @@ function renderChatHistory(chats) {
   });
 }
 
+function buildAssistantMessage(content) {
+  const msg = document.createElement('div');
+  msg.style.cssText = 'padding:12px 16px;border-radius:12px;font-size:0.9rem;line-height:1.6;max-width:90%;background:var(--glass-bg);color:var(--text-primary);align-self:flex-start;';
+
+  const contentEl = document.createElement('div');
+  contentEl.className = 'chat-msg__content';
+  contentEl.innerHTML = renderMarkdown(content);
+  msg.appendChild(contentEl);
+
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;justify-content:flex-end;margin-top:8px;';
+  const btn = document.createElement('button');
+  btn.className = 'btn btn--ghost btn--sm';
+  btn.textContent = '+ 加入生词本';
+  btn.addEventListener('click', () => {
+    const selection = window.getSelection();
+    let picked = '';
+    if (selection && selection.toString().trim()) {
+      const anchor = selection.anchorNode;
+      if (anchor && msg.contains(anchor)) {
+        picked = selection.toString().trim();
+      }
+    }
+    const base = picked || (contentEl.textContent || '');
+    const word = base.trim().split(/\s+/).slice(0, 4).join(' ');
+    addToVocab(word);
+  });
+  actions.appendChild(btn);
+  msg.appendChild(actions);
+
+  return { msg, contentEl };
+}
+
 function appendChatMessage(role, content) {
   const container = document.getElementById('chat-messages');
   const isUser = role === 'user';
-  const msg = document.createElement('div');
-  msg.style.cssText = `padding:12px 16px;border-radius:12px;font-size:0.9rem;line-height:1.6;max-width:90%;${
-    isUser
-      ? 'background:var(--accent);color:white;align-self:flex-end;'
-      : 'background:var(--glass-bg);color:var(--text-primary);align-self:flex-start;'
-  }`;
-  msg.innerHTML = isUser ? escapeHtml(content) : renderMarkdown(content);
-  container.appendChild(msg);
+  if (isUser) {
+    const msg = document.createElement('div');
+    msg.style.cssText = 'padding:12px 16px;border-radius:12px;font-size:0.9rem;line-height:1.6;max-width:90%;background:var(--accent);color:white;align-self:flex-end;';
+    msg.innerHTML = escapeHtml(content);
+    container.appendChild(msg);
+  } else {
+    const built = buildAssistantMessage(content);
+    container.appendChild(built.msg);
+  }
   container.scrollTop = container.scrollHeight;
 }
 
@@ -214,21 +278,37 @@ async function sendChat(paperId) {
 
   // Add streaming AI response
   const container = document.getElementById('chat-messages');
-  const aiMsg = document.createElement('div');
-  aiMsg.style.cssText = 'padding:12px 16px;border-radius:12px;font-size:0.9rem;line-height:1.6;max-width:90%;background:var(--glass-bg);color:var(--text-primary);align-self:flex-start;';
-  aiMsg.innerHTML = '<span style="color:var(--text-muted);">思考中...</span>';
+  const built = buildAssistantMessage('<span style="color:var(--text-muted);">思考中...</span>');
+  const aiMsg = built.msg;
+  const aiContent = built.contentEl;
   container.appendChild(aiMsg);
   container.scrollTop = container.scrollHeight;
 
   try {
     await streamAI(`/papers/${paperId}/chat`, { message }, (text) => {
-      aiMsg.innerHTML = renderMarkdown(text);
+      lastAssistantText = text;
+      aiContent.innerHTML = renderMarkdown(text);
       container.scrollTop = container.scrollHeight;
     });
   } catch (e) {
-    aiMsg.innerHTML = `<span style="color:#ef4444;">回答失败: ${e.message}</span>`;
+    aiContent.innerHTML = `<span style="color:#ef4444;">回答失败: ${e.message}</span>`;
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function addToVocab(word) {
+  const cleaned = (word || '').trim();
+  if (!cleaned) return;
+  try {
+    await fetch(`${API_BASE}/vocab`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: cleaned, source: 'paper', domain: 'general' })
+    });
+    window.showToast(`"${cleaned}" 已加入生词本`, 'success');
+  } catch (e) {
+    window.showToast('加入失败', 'error');
   }
 }
 

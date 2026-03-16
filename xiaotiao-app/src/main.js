@@ -47,6 +47,67 @@ function initGlobalInteractions() {
   // (Currently not implemented, placeholder for future feature)
 }
 
+// ── Theme Config System ──────────────────────
+function initThemeConfig() {
+  const fab = document.getElementById('theme-config-fab');
+  const overlay = document.getElementById('theme-config-overlay');
+  if (!fab || !overlay) return;
+
+  const closeBtn = overlay.querySelector('[data-theme-close]');
+  const buttons = Array.from(overlay.querySelectorAll('.theme-btn'));
+  const root = document.documentElement;
+  const storageKey = 'xt-theme';
+
+  const updateActive = (theme) => {
+    buttons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+  };
+
+  const setTheme = (theme) => {
+    if (theme) {
+      root.setAttribute('data-theme', theme);
+      localStorage.setItem(storageKey, theme);
+    } else {
+      root.removeAttribute('data-theme');
+      localStorage.removeItem(storageKey);
+    }
+    updateActive(theme);
+  };
+
+  const open = () => {
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+  };
+  const close = () => {
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden', 'true');
+  };
+
+  const saved = localStorage.getItem(storageKey);
+  if (saved) {
+    setTheme(saved);
+  } else {
+    updateActive(root.dataset.theme || '');
+  }
+
+  fab.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
+      close();
+    }
+  });
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTheme(btn.dataset.theme || '');
+    });
+  });
+}
+
 
 // ── 1. Button Ripple Effect ──────────────────
 // Creates a radial glow ripple from the click point.
@@ -272,6 +333,7 @@ router.resolve = function () {
 
 // ── Initialize Everything ────────────────────
 initRippleSystem();
+initThemeConfig();
 updateNavbar();
 
 window.addEventListener('resize', () => {

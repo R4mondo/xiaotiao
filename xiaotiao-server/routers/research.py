@@ -14,7 +14,7 @@ from services.research_store import (
     upsert_rag_document,
 )
 
-router = APIRouter(prefix="/api/v1/research", tags=["research"])
+router = APIRouter(prefix="/research", tags=["research"])
 
 
 @router.get("/github-cases")

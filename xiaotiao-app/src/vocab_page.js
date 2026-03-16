@@ -177,7 +177,8 @@ export async function initVocabPage() {
 
 // Helper to make GET requests (our api.js fetchAPI was hardcoded to POST)
 async function getJSON(url) {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const res = await fetch(`${API_BASE}${url}`);
     if (!res.ok) throw new Error('Failed to fetch data');
     return await res.json();
@@ -185,7 +186,8 @@ async function getJSON(url) {
 
 // Helper to make POST requests directly
 async function postJSON(url, payload) {
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const res = await fetch(`${API_BASE}${url}`, {
         method: 'POST',
         headers: {
@@ -352,7 +354,8 @@ async function submitNewWord() {
 window.__deleteVocab = async (id) => {
     const ok = await showGlassConfirm('删除术语', '确定要删除该核心术语吗？这也会删除其复习历史。', { danger: true, confirmText: '删除', cancelText: '取消' });
     if (ok) {
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+        const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
         try {
             const res = await fetch(`${API_BASE}/vocab/${id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('删除失败');

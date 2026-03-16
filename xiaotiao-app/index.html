@@ -61,6 +61,30 @@
   <!-- Page Content Container -->
   <main class="page" id="app"></main>
 
+  <!-- Theme Config Floating Button -->
+  <button class="theme-config-fab" id="theme-config-fab" title="主题设置">
+    主题
+  </button>
+
+  <!-- Theme Config Modal -->
+  <div class="theme-config-overlay" id="theme-config-overlay" aria-hidden="true">
+    <div class="theme-config-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-config-title">
+      <div class="theme-config-header">
+        <div>
+          <div class="theme-config-title" id="theme-config-title">主题设置</div>
+          <div class="theme-config-subtitle">选择界面风格</div>
+        </div>
+        <button class="theme-config-close" data-theme-close>关闭</button>
+      </div>
+      <div class="theme-switcher-container">
+        <button class="theme-btn theme-btn--abyss" data-theme="abyss" aria-label="Abyss"></button>
+        <button class="theme-btn theme-btn--emerald" data-theme="emerald" aria-label="Emerald"></button>
+        <button class="theme-btn theme-btn--cyber" data-theme="cyber" aria-label="Cyber"></button>
+        <button class="theme-btn theme-btn--obsidian" data-theme="obsidian" aria-label="Obsidian"></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <footer class="footer">
     <div class="container">

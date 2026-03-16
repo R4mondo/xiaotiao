@@ -4,7 +4,7 @@ from schemas import ArticleAnalyzeRequest, ArticleAnalyzeResponse
 from services.llm import call_claude_json
 from services.research_store import search_rag_chunks
 
-router = APIRouter(prefix="/api/v1/article", tags=["article"])
+router = APIRouter(prefix="/article", tags=["article"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)

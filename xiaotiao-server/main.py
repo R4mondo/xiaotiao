@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover - fallback for minimal runtime env
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from db.database import init_db
+from db.database import init_db, run_migrations
 from routers import topic, article, translation, vocab, research, papers, tracker, collections
 
 try:
@@ -37,6 +37,7 @@ app = FastAPI(title="XiaoTiao Server", version="1.0.0")
 @app.on_event("startup")
 def on_startup():
     init_db()
+    run_migrations()
 
 # Configure CORS for local development
 app.add_middleware(

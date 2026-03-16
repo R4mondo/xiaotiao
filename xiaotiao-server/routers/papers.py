@@ -15,7 +15,7 @@ from db.database import get_db
 from services.llm import call_claude_json, call_claude_stream
 from services.paper_service import process_paper_url, process_paper_pdf, get_paper_text, UPLOAD_DIR
 
-router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
+router = APIRouter(prefix="/papers", tags=["papers"])
 
 
 # ── Request / Response Models ─────────────────
@@ -145,13 +145,32 @@ async def upload_pdf(
     return {"id": paper_id, "filename": file.filename}
 
 
+@router.get("/stats")
+def get_paper_stats(db=Depends(get_db)):
+    row = db.execute(
+        """SELECT
+            COALESCE(SUM(CASE WHEN created_at >= datetime('now','-7 days') THEN 1 ELSE 0 END), 0) AS imported_7d,
+            COALESCE(SUM(CASE WHEN updated_at >= datetime('now','-7 days') THEN 1 ELSE 0 END), 0) AS viewed_7d
+           FROM papers"""
+    ).fetchone()
+    return {
+        "imported_7d": int(row["imported_7d"]) if row else 0,
+        "viewed_7d": int(row["viewed_7d"]) if row else 0,
+    }
+
+
 @router.get("/{paper_id}")
 def get_paper(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT * FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Paper not found")
 
+    now = datetime.utcnow().isoformat()
+    db.execute("UPDATE papers SET updated_at=? WHERE id=?", (now, paper_id))
+    db.commit()
+
     paper = dict(row)
+    paper["updated_at"] = now
 
     # Include chat history
     chats = db.execute(
@@ -193,8 +212,8 @@ def toggle_favorite(paper_id: str, db=Depends(get_db)):
 
 # ── AI Endpoints (Streaming) ─────────────────
 
-@router.post("/{paper_id}/explain")
-async def explain_paper(paper_id: str, db=Depends(get_db)):
+@router.post("/{paper_id}/insight")
+async def insight_paper(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT * FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
         raise HTTPException(404, "Paper not found")
@@ -250,6 +269,12 @@ async def explain_paper(paper_id: str, db=Depends(get_db)):
             print(f"[papers] Error saving insight: {e}")
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+# Backward-compatible alias
+@router.post("/{paper_id}/explain")
+async def explain_paper(paper_id: str, db=Depends(get_db)):
+    return await insight_paper(paper_id, db)
 
 
 @router.post("/{paper_id}/chat")
@@ -348,6 +373,21 @@ async def explain_selection(paper_id: str, body: TextRequest):
 2. 术语解释
 3. 在论文语境中的含义
 用中文回答，简洁明了。"""
+
+    async def generate():
+        async for chunk in call_claude_stream(system_prompt, body.text[:2000]):
+            yield chunk
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+@router.post("/{paper_id}/summarize-selection")
+async def summarize_selection(paper_id: str, body: TextRequest):
+    system_prompt = """你是一位学术论文阅读助手。请对以下选中内容做简要摘要。
+要求：
+1. 50-120 字
+2. 聚焦核心观点与结论
+3. 使用简洁中文"""
 
     async def generate():
         async for chunk in call_claude_stream(system_prompt, body.text[:2000]):

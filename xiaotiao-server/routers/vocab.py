@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from db.database import get_db
 from schemas_vocab import VocabItemCreate, VocabItemUpdate, VocabItemResponse, VocabStatsResponse, VocabListResponse
 
-router = APIRouter(prefix="/api/v1/vocab", tags=["vocabulary"])
+router = APIRouter(prefix="/vocab", tags=["vocabulary"])
 
 
 def text(query: str) -> str:

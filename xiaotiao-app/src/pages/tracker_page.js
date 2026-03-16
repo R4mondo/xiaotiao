@@ -1,5 +1,6 @@
 // Tracker Page — /tracker
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
 
 export function renderTrackerPage() {
   return `

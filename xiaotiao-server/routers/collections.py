@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from db.database import get_db
 
-router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
+router = APIRouter(prefix="/collections", tags=["collections"])
 
 
 class CollectionCreate(BaseModel):

@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from schemas import TranslationRequest, TranslationResponse
 from services.llm import call_claude_json
 
-router = APIRouter(prefix="/api/v1/translation", tags=["translation"])
+router = APIRouter(prefix="/translation", tags=["translation"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)

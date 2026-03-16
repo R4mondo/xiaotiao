@@ -6,7 +6,7 @@ from services.llm import call_claude_json
 from services.srs import SRSEngine
 from db.database import get_db
 
-router = APIRouter(prefix="/api/v1/topic", tags=["topic"])
+router = APIRouter(prefix="/topic", tags=["topic"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)

@@ -19,7 +19,7 @@ export function renderProgressPage() {
         </div>
 
         <!-- KPI Row -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;">
+        <div class="progress-stats-grid">
             <div class="stat-card stat-card--green" style="text-align: center;">
                 <div class="stat-card__label">记忆留存率 (Retention)</div>
                 <div style="position: relative; width: 120px; height: 120px; margin: 0 auto;">
@@ -42,6 +42,20 @@ export function renderProgressPage() {
                 <div id="stat-due" class="stat-card__value">0</div>
                 <a href="#/vocab" style="color: var(--accent); font-size: 0.85rem; margin-top: 12px; text-decoration: none; display: flex; align-items: center; gap: 4px;">开始复习单词 <span class="material-symbols-rounded" style="font-size: 14px;">arrow_forward</span></a>
             </div>
+
+            <div class="stat-card stat-card--accent" style="display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <div class="stat-card__label">论文活跃 (近7天)</div>
+                <div style="display:flex;gap:16px;margin-top:8px;">
+                    <div style="text-align:center;">
+                        <div id="stat-papers-imported" class="stat-card__value" style="font-size:1.6rem;">0</div>
+                        <div style="color:var(--text-muted);font-size:0.8rem;">导入</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div id="stat-papers-viewed" class="stat-card__value" style="font-size:1.6rem;">0</div>
+                        <div style="color:var(--text-muted);font-size:0.8rem;">查阅</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Forecast Chart -->
@@ -61,7 +75,8 @@ export function renderProgressPage() {
 export async function initProgressPage() {
     window.__initProgressData = async () => {
         try {
-            const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+            const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+            const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
             
             // Fetch stats
             const statsRes = await fetch(`${API_BASE}/vocab/stats`);
@@ -91,6 +106,12 @@ export async function initProgressPage() {
             // Fetch Forecast
             const forecastRes = await fetch(`${API_BASE}/vocab/forecast`);
             const forecast = await forecastRes.json();
+
+            // Fetch paper stats
+            const paperStatsRes = await fetch(`${API_BASE}/papers/stats`);
+            const paperStats = await paperStatsRes.json();
+            document.getElementById('stat-papers-imported').textContent = paperStats.imported_7d ?? 0;
+            document.getElementById('stat-papers-viewed').textContent = paperStats.viewed_7d ?? 0;
             
             const chartContainer = document.getElementById('forecast-chart');
             const labelsContainer = document.getElementById('forecast-labels');
