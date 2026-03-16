@@ -42,6 +42,16 @@ git push -u origin feat/xxx
 
 详细规范见 `CONTRIBUTING.md`。
 
+## GitHub 网页直接编辑（无需本地环境）
+
+1. 打开仓库：`https://github.com/R4mondo/xiaotiao`
+2. 进入要修改的文件，点击右上角铅笔（Edit this file）
+3. 底部选择 `Create a new branch for this commit`
+4. 点击 `Propose changes`
+5. 点击 `Create pull request` 提交评审
+
+适合改文案、配置、小范围代码；复杂改动建议走本地开发流程。
+
 ## 一键创建 GitHub 远程仓库
 
 已提供脚本：
