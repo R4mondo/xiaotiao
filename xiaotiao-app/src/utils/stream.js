@@ -46,6 +46,110 @@ export async function streamAI(endpoint, payload, onChunk, options = {}) {
   return result;
 }
 
+// ============ Progress Simulation Utility ============
+
+/**
+ * Create a simulated progress bar with percentage that advances realistically.
+ * Returns a controller object to update/complete the progress.
+ * @param {HTMLElement} container - The container element to render progress bar into
+ * @param {string} [label] - Optional label text to show above the bar
+ * @returns {{ update: (pct: number) => void, complete: () => void, destroy: () => void, element: HTMLElement }}
+ */
+export function createProgressBar(container, label = '') {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'sim-progress-wrapper';
+  wrapper.innerHTML = `
+    ${label ? `<div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:6px;">${label}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="progress-bar" style="flex:1;"><span class="progress-bar__fill" style="width:0%;animation:none;transition:width 0.3s ease;"></span></div>
+      <span class="sim-progress-pct" style="color:var(--text-muted);font-size:0.8rem;min-width:36px;text-align:right;">0%</span>
+    </div>
+  `;
+  container.appendChild(wrapper);
+
+  const fill = wrapper.querySelector('.progress-bar__fill');
+  const pctLabel = wrapper.querySelector('.sim-progress-pct');
+
+  const update = (pct) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+    fill.style.width = `${clamped}%`;
+    pctLabel.textContent = `${clamped}%`;
+  };
+
+  const complete = () => {
+    update(100);
+    fill.style.background = '#34c759';
+  };
+
+  const destroy = () => {
+    wrapper.remove();
+  };
+
+  return { update, complete, destroy, element: wrapper };
+}
+
+/**
+ * Start a simulated progress animation that looks realistic.
+ * Fast at start, slow in middle, pauses near 90%.
+ * Call .complete() to jump to 100%, .stop() to halt.
+ * @param {HTMLElement} container - The container to render into
+ * @param {string} [label] - Optional label
+ * @returns {{ complete: () => void, stop: () => void, bar: object }}
+ */
+export function startSimulatedProgress(container, label = '') {
+  const bar = createProgressBar(container, label);
+  let current = 0;
+  let stopped = false;
+  let intervalId = null;
+
+  const tick = () => {
+    if (stopped) return;
+    if (current < 30) {
+      current += Math.random() * 4 + 2; // fast: 2-6% per tick
+    } else if (current < 60) {
+      current += Math.random() * 2 + 0.5; // medium: 0.5-2.5%
+    } else if (current < 85) {
+      current += Math.random() * 0.8 + 0.2; // slow: 0.2-1%
+    } else if (current < 92) {
+      current += Math.random() * 0.3 + 0.05; // very slow: near 90%
+    }
+    // Cap at 92 during simulation
+    current = Math.min(current, 92);
+    bar.update(current);
+  };
+
+  intervalId = setInterval(tick, 300);
+
+  const complete = () => {
+    stopped = true;
+    if (intervalId) clearInterval(intervalId);
+    bar.complete();
+  };
+
+  const stop = () => {
+    stopped = true;
+    if (intervalId) clearInterval(intervalId);
+  };
+
+  return { complete, stop, bar };
+}
+
+/**
+ * Render a progress bar HTML string for inline use (non-interactive).
+ * Use startSimulatedProgress() for interactive progress.
+ */
+export function progressBarHTML(label = '处理中...') {
+  return `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <span style="color:var(--text-muted);font-size:0.85rem;">${label}</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="progress-bar" style="flex:1;"><span class="progress-bar__fill" style="width:0%;animation:none;transition:width 0.3s ease;"></span></div>
+        <span style="color:var(--text-muted);font-size:0.8rem;min-width:36px;text-align:right;">0%</span>
+      </div>
+    </div>
+  `;
+}
+
 /**
  * Simple markdown-to-HTML converter for AI responses.
  * Handles headers, bold, italic, lists, code blocks, and paragraphs.

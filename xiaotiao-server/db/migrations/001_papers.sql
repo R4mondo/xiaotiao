@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS topics (
     id              TEXT PRIMARY KEY,
     title           TEXT NOT NULL,
     check_frequency TEXT DEFAULT 'daily',    -- 'daily'|'weekly'
+    sources         TEXT DEFAULT '["arxiv"]', -- JSON array of source keys
     last_checked_at TIMESTAMP,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS topics (
     id              TEXT PRIMARY KEY,
     title           TEXT NOT NULL,
     check_frequency TEXT DEFAULT 'daily',
+    sources         TEXT DEFAULT '["arxiv"]',
     last_checked_at TIMESTAMP,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,5 +1,5 @@
 /* ============================================================
-   小挑 XiaoTiao — Apple Liquid Glass Design System v2
+   再译 — Apple Liquid Glass Design System v2
    True iOS 26 / macOS Tahoe Liquid Glass
    ============================================================ */
 
@@ -1963,6 +1963,48 @@ textarea.form-input {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: var(--s-4);
+}
+
+/* PDF text layer for selection */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  user-select: text;
+  pointer-events: auto;
+}
+
+.textLayer span {
+  color: transparent;
+}
+
+.textLayer ::selection {
+  background: rgba(88, 86, 214, 0.25);
+}
+
+.progress-bar {
+  width: min(320px, 70%);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: var(--glass-specular);
+}
+
+.progress-bar__fill {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--grad-primary);
+  border-radius: inherit;
+  animation: progressIndeterminate 1.6s ease-in-out infinite;
+}
+
+@keyframes progressIndeterminate {
+  0% { transform: translateX(-120%); }
+  50% { transform: translateX(-20%); }
+  100% { transform: translateX(120%); }
 }
 
 /* Generated Article */

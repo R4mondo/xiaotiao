@@ -5,6 +5,7 @@ import {
   generateTopic,
   runTranslation
 } from './api.js';
+import { startSimulatedProgress } from './utils/stream.js';
 
 // ============ Shared Layout — Liquid Glass ============
 // Render layout shell is now handled centrally in index.html
@@ -20,8 +21,7 @@ export function renderHome() {
             ✨ 涉外法治英语学习平台 · V1 MVP
           </div>
           <h1 class="hero__title">
-            专业语境下的<br>
-            <span class="gradient-text">智能英语学习引擎</span>
+            <span class="gradient-text">华东政法大学涉外法治多模态学习平台</span>
           </h1>
           <p class="hero__desc">
             输入法律主题，即刻获得专业英文学习材料。<br>
@@ -192,71 +192,83 @@ export function renderTopicExplorer() {
         </p>
       </div>
 
-      <button class="topic-config-fab" id="topic-config-fab" title="打开主题配置">
+      <!-- FIX 5: Topic keywords, domains, tags moved to main page -->
+      <div class="glass-panel" style="padding:24px;border-radius:20px;margin-bottom:20px;">
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">主题关键词 *</label>
+          <input type="text" class="form-input" id="topic-input"
+            placeholder="例如：international arbitration, treaty law, cross-border data..."
+            value="international arbitration">
+        </div>
+
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">专业方向 (多选)</label>
+          <div class="checkbox-group topic-domain-grid" id="topic-domain-checklist">
+            <label class="checkbox-label"><input type="checkbox" value="international-law" checked><span></span> 国际法</label>
+            <label class="checkbox-label"><input type="checkbox" value="commercial-law"><span></span> 商法</label>
+            <label class="checkbox-label"><input type="checkbox" value="constitutional-law"><span></span> 宪法学</label>
+            <label class="checkbox-label"><input type="checkbox" value="criminal-law"><span></span> 刑法学</label>
+            <label class="checkbox-label"><input type="checkbox" value="ip-law"><span></span> 知识产权法</label>
+          </div>
+          <div class="topic-domain-actions">
+            <input type="text" class="custom-domain-field" id="topic-custom-domain" placeholder="在此输入自定义方向并回车...">
+            <button class="btn btn--secondary topic-domain-add-btn" id="btn-add-domain">添加方向</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">标签（可选，回车添加）</label>
+          <div class="tags-input" id="topic-tags-input">
+            <span class="tag">international-law <span class="tag__remove" data-tag="international-law">×</span></span>
+            <span class="tag">dispute-resolution <span class="tag__remove" data-tag="dispute-resolution">×</span></span>
+            <input type="text" class="tags-input__input" placeholder="输入标签..." id="topic-tag-field">
+          </div>
+        </div>
+      </div>
+
+      <!-- FIX 6: Summary bar with current params and generate button -->
+      <div class="glass-panel" id="topic-summary-bar" style="padding:16px 24px;border-radius:16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);font-size:0.8rem;">方向：</span>
+            <span id="summary-domains" style="color:var(--text-primary);font-size:0.85rem;font-weight:500;">国际法</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);font-size:0.8rem;">等级：</span>
+            <span id="summary-level" style="color:var(--text-primary);font-size:0.85rem;">中级</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);font-size:0.8rem;">风格：</span>
+            <span id="summary-style" style="color:var(--text-primary);font-size:0.85rem;">经济学人</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:var(--text-muted);font-size:0.8rem;">长度：</span>
+            <span id="summary-length" style="color:var(--text-primary);font-size:0.85rem;">400 词</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn--secondary btn--sm" id="topic-reopen-config">调整参数</button>
+          <button class="btn btn--topic" id="topic-submit-main" style="padding:8px 20px;">生成学习内容</button>
+        </div>
+      </div>
+
+      <button class="topic-config-fab is-visible" id="topic-config-fab" title="打开参数配置">
         ⚙️
       </button>
 
-      <div class="topic-config-overlay is-open" id="topic-config-overlay">
+      <!-- FIX 4: Config overlay starts minimized (no is-open) -->
+      <!-- FIX 5: Config wizard only contains Step 2 (parameters) -->
+      <div class="topic-config-overlay" id="topic-config-overlay">
         <div class="topic-config-dialog">
           <div class="topic-config-dialog__header">
             <div>
-              <div class="topic-config-dialog__title">模块 01 配置向导</div>
-              <div class="topic-config-dialog__hint">先选主题，再设参数，最后生成学习内容</div>
+              <div class="topic-config-dialog__title">参数配置</div>
+              <div class="topic-config-dialog__hint">调整生成参数后点击生成</div>
             </div>
             <button class="btn btn--secondary btn--sm" id="topic-config-minimize">最小化</button>
           </div>
           <div class="topic-config-dialog__body">
-            <div class="topic-stepper">
-              <button class="topic-stepper__item is-active" id="topic-step-indicator-1" type="button">
-                <span class="topic-stepper__index">1</span>
-                <span class="topic-stepper__label">主题与方向</span>
-              </button>
-              <button class="topic-stepper__item" id="topic-step-indicator-2" type="button">
-                <span class="topic-stepper__index">2</span>
-                <span class="topic-stepper__label">参数与生成</span>
-              </button>
-            </div>
-
-            <div class="topic-step-pane is-active" id="topic-step-1">
-              <div class="form-group">
-                <label class="form-label">主题关键词 *</label>
-                <input type="text" class="form-input" id="topic-input"
-                  placeholder="例如：international arbitration, treaty law, cross-border data..."
-                  value="international arbitration">
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">专业方向 (多选)</label>
-                <div class="checkbox-group topic-domain-grid" id="topic-domain-checklist">
-                  <label class="checkbox-label"><input type="checkbox" value="international-law" checked><span></span> 国际法</label>
-                  <label class="checkbox-label"><input type="checkbox" value="commercial-law"><span></span> 商法</label>
-                  <label class="checkbox-label"><input type="checkbox" value="constitutional-law"><span></span> 宪法学</label>
-                  <label class="checkbox-label"><input type="checkbox" value="criminal-law"><span></span> 刑法学</label>
-                  <label class="checkbox-label"><input type="checkbox" value="ip-law"><span></span> 知识产权法</label>
-                </div>
-                <div class="topic-domain-actions">
-                   <input type="text" class="custom-domain-field" id="topic-custom-domain" placeholder="在此输入自定义方向并回车...">
-                   <button class="btn btn--secondary topic-domain-add-btn" id="btn-add-domain">添加方向</button>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">标签（可选，回车添加）</label>
-                <div class="tags-input" id="topic-tags-input">
-                  <span class="tag">international-law <span class="tag__remove" data-tag="international-law">×</span></span>
-                  <span class="tag">dispute-resolution <span class="tag__remove" data-tag="dispute-resolution">×</span></span>
-                  <input type="text" class="tags-input__input" placeholder="输入标签..." id="topic-tag-field">
-                </div>
-              </div>
-
-              <div class="topic-step-actions">
-                <button class="btn btn--topic btn--full btn--lg" id="topic-next-step">
-                  下一步：设置参数 →
-                </button>
-              </div>
-            </div>
-
-            <div class="topic-step-pane" id="topic-step-2">
+            <div class="topic-step-pane is-active" id="topic-step-2">
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">难度等级</label>
@@ -294,12 +306,9 @@ export function renderTopicExplorer() {
                 </div>
               </div>
 
-              <div class="topic-step-actions topic-step-actions--double">
-                <button class="btn btn--ghost btn--lg" id="topic-prev-step">
-                  ← 返回上一步
-                </button>
-                <button class="btn btn--topic btn--lg" id="topic-submit">
-                  🔍 生成学习内容
+              <div class="topic-step-actions">
+                <button class="btn btn--topic btn--full btn--lg" id="topic-submit">
+                  生成学习内容
                 </button>
               </div>
             </div>
@@ -317,7 +326,6 @@ export function renderTopicExplorer() {
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:12px;color:var(--text-muted)" id="topic-confidence"></span>
-                <button class="btn btn--secondary btn--sm" id="topic-reopen-config">调整配置</button>
               </div>
             </div>
             <div class="panel__body">
@@ -338,22 +346,46 @@ export function renderTopicExplorer() {
 }
 
 export function initTopicExplorer() {
-  let currentStep = 1;
   const configOverlay = document.getElementById('topic-config-overlay');
   const configFab = document.getElementById('topic-config-fab');
   const minimizeConfigBtn = document.getElementById('topic-config-minimize');
   const reopenConfigBtn = document.getElementById('topic-reopen-config');
-  const step1Pane = document.getElementById('topic-step-1');
-  const step2Pane = document.getElementById('topic-step-2');
-  const stepIndicator1 = document.getElementById('topic-step-indicator-1');
-  const stepIndicator2 = document.getElementById('topic-step-indicator-2');
-  const nextStepBtn = document.getElementById('topic-next-step');
-  const prevStepBtn = document.getElementById('topic-prev-step');
   const submitBtn = document.getElementById('topic-submit');
+  const submitMainBtn = document.getElementById('topic-submit-main');
   const resultArea = document.getElementById('topic-result');
   const tagField = document.getElementById('topic-tag-field');
   const tagsInput = document.getElementById('topic-tags-input');
   const topicInput = document.getElementById('topic-input');
+  let lastTopicPayload = null;
+  let lastTopicLabel = '';
+
+  // Style label map for summary bar
+  const styleLabelMap = {
+    'economist': '经济学人', 'guardian': '卫报', 'ft': '金融时报',
+    'academic': '学术期刊', 'plain_english': '简明日常'
+  };
+  const levelLabelMap = {
+    'beginner': '初级', 'intermediate': '中级', 'advanced': '高级'
+  };
+
+  // FIX 6: Update summary bar whenever params change
+  const updateSummaryBar = () => {
+    const domainCheckboxes = document.querySelectorAll('#topic-domain-checklist input:checked');
+    const domains = Array.from(domainCheckboxes).map(cb => cb.parentElement.textContent.trim());
+    const level = document.getElementById('topic-level').value;
+    const style = document.getElementById('topic-style').value;
+    const length = document.getElementById('topic-len-slider').value;
+
+    const domainsEl = document.getElementById('summary-domains');
+    const levelEl = document.getElementById('summary-level');
+    const styleEl = document.getElementById('summary-style');
+    const lengthEl = document.getElementById('summary-length');
+
+    if (domainsEl) domainsEl.textContent = domains.length ? domains.join(', ') : '未选择';
+    if (levelEl) levelEl.textContent = levelLabelMap[level] || level;
+    if (styleEl) styleEl.textContent = styleLabelMap[style] || style;
+    if (lengthEl) lengthEl.textContent = `${length} 词`;
+  };
 
   if (window.__topicQuickAddCleanup) {
     window.__topicQuickAddCleanup();
@@ -489,21 +521,10 @@ export function initTopicExplorer() {
   const minimizeConfig = () => {
     configOverlay.classList.remove('is-open');
     configFab.classList.add('is-visible');
+    updateSummaryBar();
   };
 
-  const setStep = (step) => {
-    currentStep = step;
-    step1Pane.classList.toggle('is-active', step === 1);
-    step2Pane.classList.toggle('is-active', step === 2);
-
-    stepIndicator1.classList.toggle('is-active', step === 1);
-    stepIndicator2.classList.toggle('is-active', step === 2);
-
-    stepIndicator1.classList.toggle('is-complete', step > 1);
-    stepIndicator2.classList.toggle('is-complete', false);
-  };
-
-  const validateStep1 = () => {
+  const validateTopic = () => {
     const topic = topicInput.value.trim();
     if (!topic) {
       topicInput.style.borderColor = 'rgba(239,68,68,0.5)';
@@ -514,22 +535,10 @@ export function initTopicExplorer() {
     return true;
   };
 
-  nextStepBtn.addEventListener('click', () => {
-    if (!validateStep1()) return;
-    setStep(2);
-  });
-
-  prevStepBtn.addEventListener('click', () => setStep(1));
-  stepIndicator1.addEventListener('click', () => setStep(1));
-  stepIndicator2.addEventListener('click', () => {
-    if (!validateStep1()) return;
-    setStep(2);
-  });
-
   topicInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && currentStep === 1) {
+    if (e.key === 'Enter') {
       e.preventDefault();
-      nextStepBtn.click();
+      if (submitMainBtn) submitMainBtn.click();
     }
   });
 
@@ -545,6 +554,13 @@ export function initTopicExplorer() {
     }
   };
   document.addEventListener('keydown', onEscape);
+
+  // Update summary bar when config changes
+  ['topic-level', 'topic-style'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateSummaryBar);
+  });
+  document.getElementById('topic-domain-checklist').addEventListener('change', updateSummaryBar);
 
   // Tags input
   tagField.addEventListener('keydown', (e) => {
@@ -605,51 +621,42 @@ export function initTopicExplorer() {
   ['len', 'db-words', 'new-words'].forEach(id => {
       document.getElementById(`topic-${id}-slider`).addEventListener('input', (e) => {
           document.getElementById(`label-${id}`).textContent = e.target.value;
+          updateSummaryBar();
       });
   });
 
-  submitBtn.addEventListener('click', async () => {
-    const topic = topicInput.value.trim();
-    if (!validateStep1()) return;
+  const runTopicGeneration = async (payload, topicLabel) => {
+    if (!payload) return;
 
     submitBtn.disabled = true;
-    nextStepBtn.disabled = true;
-    prevStepBtn.disabled = true;
+    if (submitMainBtn) submitMainBtn.disabled = true;
     minimizeConfigBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> AI 正在生成...';
+    if (submitMainBtn) submitMainBtn.innerHTML = '<span class="spinner"></span> 生成中...';
 
     resultArea.innerHTML = `
       <div class="loading-state">
         <div class="loading-dots"><span></span><span></span><span></span></div>
-        <div class="loading-text">正在为「${topic}」生成学习内容...</div>
+        <div class="loading-text">正在为「${topicLabel}」生成学习内容...</div>
+        <div id="topic-gen-progress" style="margin-top:12px;max-width:400px;margin-left:auto;margin-right:auto;"></div>
       </div>
     `;
 
-    try {
-      const level = document.getElementById('topic-level').value;
-      const domainCheckboxes = document.querySelectorAll('#topic-domain-checklist input:checked');
-      const domains = Array.from(domainCheckboxes).map(cb => cb.parentElement.textContent.trim());
-      
-      const style = document.getElementById('topic-style').value;
-      const length = parseInt(document.getElementById('topic-len-slider').value, 10);
-      const dbWords = parseInt(document.getElementById('topic-db-words-slider').value, 10);
-      const newWords = parseInt(document.getElementById('topic-new-words-slider').value, 10);
+    const progressEl = document.getElementById('topic-gen-progress');
+    const progress = startSimulatedProgress(progressEl, '正在调用 AI 生成...');
 
-      const data = await generateTopic({ 
-          topic, 
-          level, 
-          domains: domains.length ? domains : ['General'],
-          style,
-          length,
-          dbWords,
-          newWords
-      });
+    try {
+      const data = await generateTopic(payload);
+      progress.complete();
 
       document.getElementById('topic-confidence').textContent = `可信度: ${data.confidence_hint}`;
       minimizeConfig();
 
       resultArea.innerHTML = `
         <div class="gen-article">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn--ghost btn--sm" id="btn-topic-regenerate">🔄 重新生成</button>
+          </div>
           <div class="gen-article__section">
             <div class="gen-article__section-title">📄 英文学习文章</div>
             <div class="gen-article__text">${data.result_text}</div>
@@ -693,24 +700,58 @@ export function initTopicExplorer() {
           </div>
         </div>
       `;
+      const regenBtn = document.getElementById('btn-topic-regenerate');
+      if (regenBtn) regenBtn.addEventListener('click', () => runTopicGeneration(lastTopicPayload, lastTopicLabel));
     } catch (err) {
+      progress.stop();
       resultArea.innerHTML = `
         <div class="result-empty">
           <div class="result-empty__icon">❌</div>
-          <div class="result-empty__text">生成失败，请重试<br>${err.message}</div>
+          <div class="result-empty__text">生成失败，请重试<br><span style="color:#ef4444;">${err.message}</span><br><br><span style="font-size:0.85rem;color:var(--text-muted);">提示：请检查 LLM 服务配置是否正确，或稍后重试。</span></div>
         </div>
       `;
     }
 
-    nextStepBtn.disabled = false;
-    prevStepBtn.disabled = false;
     minimizeConfigBtn.disabled = false;
-    submitBtn.innerHTML = '🔍 生成学习内容';
+    submitBtn.innerHTML = '生成学习内容';
     submitBtn.disabled = false;
-  });
+    if (submitMainBtn) {
+      submitMainBtn.innerHTML = '生成学习内容';
+      submitMainBtn.disabled = false;
+    }
+  };
 
-  setStep(1);
-  openConfig();
+  const doSubmit = async () => {
+    const topic = topicInput.value.trim();
+    if (!validateTopic()) return;
+
+    const level = document.getElementById('topic-level').value;
+    const domainCheckboxes = document.querySelectorAll('#topic-domain-checklist input:checked');
+    const domains = Array.from(domainCheckboxes).map(cb => cb.parentElement.textContent.trim());
+    const style = document.getElementById('topic-style').value;
+    const length = parseInt(document.getElementById('topic-len-slider').value, 10);
+    const dbWords = parseInt(document.getElementById('topic-db-words-slider').value, 10);
+    const newWords = parseInt(document.getElementById('topic-new-words-slider').value, 10);
+
+    lastTopicPayload = {
+      topic,
+      level,
+      domains: domains.length ? domains : ['General'],
+      style,
+      length,
+      dbWords,
+      newWords
+    };
+    lastTopicLabel = topic;
+    minimizeConfig();
+    await runTopicGeneration(lastTopicPayload, lastTopicLabel);
+  };
+
+  submitBtn.addEventListener('click', doSubmit);
+  if (submitMainBtn) submitMainBtn.addEventListener('click', doSubmit);
+
+  // FIX 4: Config starts minimized, FAB is visible by default
+  updateSummaryBar();
 
   window.__topicQuickAddCleanup = () => {
     document.removeEventListener('mouseup', onDocumentMouseUp);
@@ -780,7 +821,21 @@ export function renderArticleLab() {
                   <input type="checkbox" id="article-grounded">
                   <span></span>
                   使用 Grounded 模式（RAG 检索证据）
+                  <button type="button" id="grounded-info-toggle" style="background:none;border:1px solid var(--text-muted);color:var(--text-muted);border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;flex-shrink:0;" title="了解 Grounded 模式">?</button>
                 </label>
+                <div id="grounded-info-panel" style="display:none;margin-top:10px;padding:16px;background:rgba(88,86,214,0.05);border:1px solid rgba(88,86,214,0.15);border-radius:12px;font-size:0.85rem;line-height:1.7;color:var(--text-secondary);">
+                  <div style="font-weight:600;color:var(--text-primary);margin-bottom:8px;">Grounded 模式说明</div>
+                  <p style="margin-bottom:8px;"><strong>什么是 Grounded 模式？</strong><br>
+                  Grounded 模式使用 RAG（检索增强生成）技术，在生成解读前先从知识库中检索相关证据和案例，确保 AI 的分析有据可依。</p>
+                  <p style="margin-bottom:8px;"><strong>RAG 检索如何工作？</strong><br>
+                  系统会将你的输入文本与知识库中的 GitHub 案例、法律文献片段进行语义匹配，选取最相关的 top-K 条结果作为上下文，辅助 AI 生成更准确的解读。</p>
+                  <p style="margin-bottom:8px;"><strong>提供什么类型的证据？</strong><br>
+                  引用来源包括：GitHub 开源法律 AI 项目案例、相关法律条文片段、学术文献摘要等。每条引用会标注来源和相关度。</p>
+                  <p style="margin:0;"><strong>使用技巧：</strong><br>
+                  - 建议先通过"Research Finder"刷新并入库 GitHub 案例<br>
+                  - 输入越具体的法律文本，检索效果越好<br>
+                  - 适合用于需要引用佐证的学术分析场景</p>
+                </div>
               </div>
 
               <div class="form-group">
@@ -850,6 +905,21 @@ export function initArticleLab() {
   const wordCount = document.getElementById('article-word-count');
   const fileUpload = document.getElementById('article-file-upload');
   const groundedInput = document.getElementById('article-grounded');
+  let lastArticlePayload = null;
+  let lastArticleWords = 0;
+
+  // FIX 7: Grounded mode info panel toggle
+  const groundedInfoToggle = document.getElementById('grounded-info-toggle');
+  const groundedInfoPanel = document.getElementById('grounded-info-panel');
+  if (groundedInfoToggle && groundedInfoPanel) {
+    groundedInfoToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = groundedInfoPanel.style.display !== 'none';
+      groundedInfoPanel.style.display = isOpen ? 'none' : 'block';
+      groundedInfoToggle.textContent = isOpen ? '?' : '×';
+    });
+  }
 
   const extractTextFromPdfFile = async (file) => {
     const [pdfjsLib, workerUrlModule] = await Promise.all([
@@ -922,19 +992,8 @@ export function initArticleLab() {
   // Trigger initial count
   articleInput.dispatchEvent(new Event('input'));
 
-  submitBtn.addEventListener('click', async () => {
-    const text = articleInput.value.trim();
-    if (!text) {
-      articleInput.style.borderColor = 'rgba(239,68,68,0.5)';
-      return;
-    }
-
-    const words = text.split(/\s+/).filter(Boolean).length;
-    if (words > 3500) {
-      showToast('文本超过 3500 词限制，请缩短输入或分段处理。', 'warning');
-      return;
-    }
-
+  const runArticleAnalysis = async (payload, words) => {
+    if (!payload) return;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> AI 正在解读...';
 
@@ -942,20 +1001,22 @@ export function initArticleLab() {
       <div class="loading-state">
         <div class="loading-dots"><span></span><span></span><span></span></div>
         <div class="loading-text">正在解读文本 (${words} 词)...</div>
+        <div id="article-gen-progress" style="margin-top:12px;max-width:400px;margin-left:auto;margin-right:auto;"></div>
       </div>
     `;
 
+    const articleProgressEl = document.getElementById('article-gen-progress');
+    const articleProgress = startSimulatedProgress(articleProgressEl, '正在调用 AI 解读...');
+
     try {
-      const data = await analyzeArticle({
-        source_text: text,
-        analysis_mode: window.__articleMode,
-        target_lang: 'zh',
-        grounded: Boolean(groundedInput && groundedInput.checked),
-        top_k: 4
-      });
+      const data = await analyzeArticle(payload);
+      articleProgress.complete();
 
       resultArea.innerHTML = `
         <div class="analysis-result">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn--ghost btn--sm" id="btn-article-regenerate">🔄 重新解读全文</button>
+          </div>
           <div class="gen-article__section">
             <div class="gen-article__section-title">📝 分段解读</div>
             ${data.paragraphs.map((p, i) => `
@@ -1017,7 +1078,11 @@ export function initArticleLab() {
           </div>
         </div>
       `;
+
+      const regenBtn = document.getElementById('btn-article-regenerate');
+      if (regenBtn) regenBtn.addEventListener('click', () => runArticleAnalysis(lastArticlePayload, lastArticleWords));
     } catch (err) {
+      articleProgress.stop();
       resultArea.innerHTML = `
         <div class="result-empty">
           <div class="result-empty__icon">❌</div>
@@ -1028,6 +1093,30 @@ export function initArticleLab() {
 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '📖 开始解读';
+  };
+
+  submitBtn.addEventListener('click', async () => {
+    const text = articleInput.value.trim();
+    if (!text) {
+      articleInput.style.borderColor = 'rgba(239,68,68,0.5)';
+      return;
+    }
+
+    const words = text.split(/\s+/).filter(Boolean).length;
+    if (words > 3500) {
+      showToast('文本超过 3500 词限制，请缩短输入或分段处理。', 'warning');
+      return;
+    }
+
+    lastArticlePayload = {
+      source_text: text,
+      analysis_mode: window.__articleMode,
+      target_lang: 'zh',
+      grounded: Boolean(groundedInput && groundedInput.checked),
+      top_k: 4
+    };
+    lastArticleWords = words;
+    await runArticleAnalysis(lastArticlePayload, lastArticleWords);
   });
 }
 
@@ -1040,15 +1129,23 @@ window.retryParagraph = async function(btn) {
   btn.disabled = true;
   const originalBtnText = btn.innerHTML;
   btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;margin-right:6px"></span> 解读中...';
-  
+  if (zhEl) {
+    zhEl.innerHTML = `<span style="color:var(--text-muted);">正在生成该段解读...</span><div id="para-retry-progress"></div>`;
+  }
+
+  const { startSimulatedProgress: startProgress } = await import('./utils/stream.js');
+  const paraProgressEl = document.getElementById('para-retry-progress');
+  const paraProgress = paraProgressEl ? startProgress(paraProgressEl, '') : null;
+
   try {
-    // Dynamically retrieve the module scope api import or simply wrap in closure.
-    // Since analyzeArticle is imported in pages.js, we can call it.
     const mode = window.__articleMode || 'plain';
     const { analyzeArticle } = await import('./api.js');
     const data = await analyzeArticle({ source_text: enText, analysis_mode: mode });
+    if (paraProgress) paraProgress.complete();
     
-    zhEl.innerText = data.paragraphs[0].explanation;
+    if (zhEl) {
+      zhEl.innerText = data.paragraphs[0].explanation;
+    }
     
     // Success flash highlight
     container.style.transition = 'background-color 0.4s ease';
@@ -1057,6 +1154,7 @@ window.retryParagraph = async function(btn) {
         container.style.backgroundColor = '';
     }, 1000);
   } catch (err) {
+    if (paraProgress) paraProgress.stop();
     showToast('段落重新解读失败：' + err.message, 'error');
   } finally {
     btn.disabled = false;
@@ -1177,6 +1275,7 @@ export function initTranslationStudio() {
   window.__translationDirection = 'zh_to_en';
 
   const transInput = document.getElementById('translation-input');
+  let lastTranslationPayload = null;
   
   // Check for handoff text from Topic Explorer
   const handoffText = sessionStorage.getItem('__xiao_tiao_handoff_text');
@@ -1200,18 +1299,8 @@ export function initTranslationStudio() {
   const submitBtn = document.getElementById('translation-submit');
   const resultArea = document.getElementById('translation-result');
 
-  submitBtn.addEventListener('click', async () => {
-    const text = document.getElementById('translation-input').value.trim();
-    if (!text) {
-      document.getElementById('translation-input').style.borderColor = 'rgba(239,68,68,0.5)';
-      return;
-    }
-
-    if (text.length > 5000) {
-      showToast('输入文本过长，请控制在 5000 字符以内。', 'warning');
-      return;
-    }
-
+  const runTranslationRequest = async (payload) => {
+    if (!payload) return;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner"></span> AI 正在翻译...';
 
@@ -1219,23 +1308,25 @@ export function initTranslationStudio() {
       <div class="loading-state">
         <div class="loading-dots"><span></span><span></span><span></span></div>
         <div class="loading-text">正在生成三种风格翻译...</div>
+        <div id="trans-gen-progress" style="margin-top:12px;max-width:400px;margin-left:auto;margin-right:auto;"></div>
       </div>
     `;
 
+    const transProgressEl = document.getElementById('trans-gen-progress');
+    const transProgress = startSimulatedProgress(transProgressEl, '正在调用 AI 翻译...');
+
     try {
-      const userTranslation = document.getElementById('translation-user').value.trim();
-      const data = await runTranslation({
-        source_text: text,
-        direction: window.__translationDirection,
-        style: ['literal', 'legal', 'plain'],
-        user_translation: userTranslation
-      });
+      const data = await runTranslation(payload);
+      transProgress.complete();
 
       document.getElementById('trans-confidence').textContent =
         `可信度: ${data.confidence_hint}`;
 
       resultArea.innerHTML = `
         <div class="translation-result">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn--ghost btn--sm" id="btn-translation-regenerate">🔄 重新生成翻译</button>
+          </div>
           ${data.critique ? `
             <div class="gen-article__section" style="margin-bottom: 24px; background: rgba(52, 199, 89, 0.05); padding: 18px; border-radius: 12px; border: 1px solid rgba(52, 199, 89, 0.2);">
               <div class="gen-article__section-title" style="color: var(--translation); margin-bottom: 12px;">🤖 译文对照点评</div>
@@ -1279,6 +1370,13 @@ export function initTranslationStudio() {
             ${data.notes.map(n => `<div class="notes-section__item">${n}</div>`).join('')}
           </div>
 
+          ${data.common_errors && data.common_errors.length ? `
+            <div class="notes-section" style="margin-top:12px;">
+              <div class="notes-section__title">⚠️ 常见错误提示</div>
+              ${data.common_errors.map(n => `<div class="notes-section__item">${n}</div>`).join('')}
+            </div>
+          ` : ''}
+
           <div class="feedback">
             <span class="feedback__label">翻译结果是否有帮助？</span>
             <div class="feedback__btns">
@@ -1288,7 +1386,10 @@ export function initTranslationStudio() {
           </div>
         </div>
       `;
+      const regenBtn = document.getElementById('btn-translation-regenerate');
+      if (regenBtn) regenBtn.addEventListener('click', () => runTranslationRequest(lastTranslationPayload));
     } catch (err) {
+      transProgress.stop();
       resultArea.innerHTML = `
         <div class="result-empty">
           <div class="result-empty__icon">❌</div>
@@ -1299,6 +1400,29 @@ export function initTranslationStudio() {
 
     submitBtn.disabled = false;
     submitBtn.innerHTML = '🌐 开始翻译';
+  };
+
+  submitBtn.addEventListener('click', async () => {
+    const text = document.getElementById('translation-input').value.trim();
+    if (!text) {
+      document.getElementById('translation-input').style.borderColor = 'rgba(239,68,68,0.5)';
+      return;
+    }
+
+    if (text.length > 5000) {
+      showToast('输入文本过长，请控制在 5000 字符以内。', 'warning');
+      return;
+    }
+
+    const userTranslation = document.getElementById('translation-user').value.trim();
+    lastTranslationPayload = {
+      source_text: text,
+      direction: window.__translationDirection,
+      style: ['literal', 'legal', 'plain'],
+      user_translation: userTranslation
+    };
+
+    await runTranslationRequest(lastTranslationPayload);
   });
 }
 

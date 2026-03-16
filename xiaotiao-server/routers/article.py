@@ -4,17 +4,22 @@ from schemas import ArticleAnalyzeRequest, ArticleAnalyzeResponse
 from services.llm import call_claude_json
 from services.research_store import search_rag_chunks
 
-router = APIRouter(prefix="/article", tags=["article"])
+router = APIRouter(prefix="/article", tags=["文章解读"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-@router.post("/analyze", response_model=ArticleAnalyzeResponse)
+@router.post(
+    "/analyze",
+    response_model=ArticleAnalyzeResponse,
+    summary="文章解读",
+    description="对输入文本进行结构化解读，输出段落解析、术语与关键句。",
+)
 async def analyze_article(req: ArticleAnalyzeRequest):
     if len(req.source_text.split()) > 3500:
-        raise HTTPException(status_code=422, detail="Text exceeds 3500 words limit.")
+        raise HTTPException(status_code=422, detail="文本超过 3500 词限制。")
 
     system_prompt = load_prompt("article_analyze.txt")
     
@@ -79,7 +84,7 @@ Source Text:
             contexts = search_rag_chunks(req.source_text, top_k=req.top_k)
             for idx, c in enumerate(contexts, start=1):
                 title = c.get("title") or c.get("source_id") or f"source-{idx}"
-                normalized_keys.append({"text": f"[引用 {idx}] {title}", "reason": "Grounded evidence source"})
+                normalized_keys.append({"text": f"[引用 {idx}] {title}", "reason": "证据来源"})
 
         normalized = {
             "paragraphs": normalized_paragraphs,
@@ -89,4 +94,4 @@ Source Text:
         response = ArticleAnalyzeResponse(**normalized)
         return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM returned malformed data: {e}. Raw data: {data}")
+        raise HTTPException(status_code=500, detail=f"LLM 返回数据格式错误：{e}。原始数据：{data}")

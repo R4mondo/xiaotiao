@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
@@ -62,7 +62,7 @@ def fetch_repositories(query: str, per_page: int = 20) -> List[Dict[str, Any]]:
     return []
 
 
-def refresh_github_cases(queries: List[str] | None = None, per_page: int = 20) -> Dict[str, Any]:
+def refresh_github_cases(queries: Optional[List[str]] = None, per_page: int = 20) -> Dict[str, Any]:
     selected_queries = queries or DEFAULT_QUERIES
     total_saved = 0
     cycle_details = []

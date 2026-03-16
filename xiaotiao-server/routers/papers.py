@@ -1,4 +1,4 @@
-"""Papers router — CRUD, AI insight, chat, PDF management."""
+"""论文模块路由：增删改查、AI 解读、对话、PDF 管理。"""
 
 import os
 import uuid
@@ -15,7 +15,7 @@ from db.database import get_db
 from services.llm import call_claude_json, call_claude_stream
 from services.paper_service import process_paper_url, process_paper_pdf, get_paper_text, UPLOAD_DIR
 
-router = APIRouter(prefix="/papers", tags=["papers"])
+router = APIRouter(prefix="/papers", tags=["论文库"])
 
 
 # ── Request / Response Models ─────────────────
@@ -40,10 +40,17 @@ class AnnotationCreate(BaseModel):
     page_number: Optional[int] = None
     position: Optional[str] = None
 
+class InsightRequest(BaseModel):
+    text: Optional[str] = None
+
 
 # ── Paper CRUD ────────────────────────────────
 
-@router.get("")
+@router.get(
+    "",
+    summary="获取论文列表",
+    description="分页获取论文列表，支持收藏与合集过滤。",
+)
 def list_papers(
     page: int = 1,
     limit: int = 20,
@@ -86,7 +93,11 @@ def list_papers(
     }
 
 
-@router.post("/batch-url")
+@router.post(
+    "/batch-url",
+    summary="批量导入论文链接",
+    description="批量提交 ArXiv/URL 并异步抓取元数据。",
+)
 async def batch_import_urls(body: BatchUrlRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
     created = []
     for url in body.urls:
@@ -113,14 +124,18 @@ async def batch_import_urls(body: BatchUrlRequest, background_tasks: BackgroundT
     return {"papers": created}
 
 
-@router.post("/upload-pdf")
+@router.post(
+    "/upload-pdf",
+    summary="上传 PDF",
+    description="上传单个 PDF 并创建论文记录。",
+)
 async def upload_pdf(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db=Depends(get_db)
 ):
     if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(400, "Only PDF files are accepted")
+        raise HTTPException(400, "仅支持 PDF 文件。")
 
     paper_id = str(uuid.uuid4())
     filename = f"{paper_id}.pdf"
@@ -128,7 +143,7 @@ async def upload_pdf(
 
     content = await file.read()
     if len(content) > 50 * 1024 * 1024:
-        raise HTTPException(400, "File too large (max 50MB)")
+        raise HTTPException(400, "文件过大（最大 50MB）。")
 
     with open(filepath, "wb") as f:
         f.write(content)
@@ -145,7 +160,11 @@ async def upload_pdf(
     return {"id": paper_id, "filename": file.filename}
 
 
-@router.get("/stats")
+@router.get(
+    "/stats",
+    summary="论文统计",
+    description="获取近 7 天导入与阅读次数。",
+)
 def get_paper_stats(db=Depends(get_db)):
     row = db.execute(
         """SELECT
@@ -159,11 +178,15 @@ def get_paper_stats(db=Depends(get_db)):
     }
 
 
-@router.get("/{paper_id}")
+@router.get(
+    "/{paper_id}",
+    summary="获取论文详情",
+    description="获取论文信息并附带聊天记录。",
+)
 def get_paper(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT * FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
     now = datetime.utcnow().isoformat()
     db.execute("UPDATE papers SET updated_at=? WHERE id=?", (now, paper_id))
@@ -182,11 +205,15 @@ def get_paper(paper_id: str, db=Depends(get_db)):
     return paper
 
 
-@router.delete("/{paper_id}")
+@router.delete(
+    "/{paper_id}",
+    summary="删除论文",
+    description="删除论文记录并清理本地 PDF 文件（如存在）。",
+)
 def delete_paper(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT pdf_path FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
     # Delete PDF file if exists
     if row["pdf_path"] and os.path.exists(row["pdf_path"]):
@@ -197,11 +224,15 @@ def delete_paper(paper_id: str, db=Depends(get_db)):
     return {"status": "deleted"}
 
 
-@router.post("/{paper_id}/toggle-favorite")
+@router.post(
+    "/{paper_id}/toggle-favorite",
+    summary="切换收藏",
+    description="切换论文收藏状态。",
+)
 def toggle_favorite(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT is_favorite FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
     new_val = 0 if row["is_favorite"] else 1
     db.execute("UPDATE papers SET is_favorite=?, updated_at=? WHERE id=?",
@@ -212,15 +243,22 @@ def toggle_favorite(paper_id: str, db=Depends(get_db)):
 
 # ── AI Endpoints (Streaming) ─────────────────
 
-@router.post("/{paper_id}/insight")
-async def insight_paper(paper_id: str, db=Depends(get_db)):
+@router.post(
+    "/{paper_id}/insight",
+    summary="生成论文解读",
+    description="流式生成论文的结构化解读（Insight）。支持传入临时文本进行测试。",
+)
+async def insight_paper(paper_id: str, body: Optional[InsightRequest] = None, db=Depends(get_db)):
     row = db.execute("SELECT * FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
-    paper_text = get_paper_text(paper_id)
+    manual_text = ""
+    if body and body.text:
+        manual_text = body.text.strip()
+    paper_text = manual_text or get_paper_text(paper_id)
     if not paper_text:
-        raise HTTPException(400, "No text content available for this paper")
+        raise HTTPException(400, "该论文暂无可用文本内容，请上传可复制文本的 PDF，或在前端粘贴测试文本。")
 
     system_prompt = """你是一位资深学术论文分析专家。请对以下论文内容进行深入、结构化的解读分析。
 
@@ -272,16 +310,24 @@ async def insight_paper(paper_id: str, db=Depends(get_db)):
 
 
 # Backward-compatible alias
-@router.post("/{paper_id}/explain")
+@router.post(
+    "/{paper_id}/explain",
+    summary="生成论文解读（兼容旧接口）",
+    description="与 /insight 等价，保留旧接口兼容。",
+)
 async def explain_paper(paper_id: str, db=Depends(get_db)):
     return await insight_paper(paper_id, db)
 
 
-@router.post("/{paper_id}/chat")
+@router.post(
+    "/{paper_id}/chat",
+    summary="论文对话",
+    description="基于论文内容进行对话问答（流式输出）。",
+)
 async def chat_with_paper(paper_id: str, body: ChatRequest, db=Depends(get_db)):
     row = db.execute("SELECT * FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
     paper_text = get_paper_text(paper_id)
 
@@ -335,7 +381,11 @@ async def chat_with_paper(paper_id: str, body: ChatRequest, db=Depends(get_db)):
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
-@router.post("/{paper_id}/page-summary")
+@router.post(
+    "/{paper_id}/page-summary",
+    summary="页面摘要",
+    description="对指定 PDF 页面的文本生成摘要（流式输出）。",
+)
 async def page_summary(paper_id: str, body: PageSummaryRequest):
     system_prompt = """你是一位学术论文阅读助手。请为以下 PDF 页面内容生成简洁的中文摘要。
 摘要应该：
@@ -354,7 +404,11 @@ async def page_summary(paper_id: str, body: PageSummaryRequest):
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
-@router.post("/{paper_id}/translate")
+@router.post(
+    "/{paper_id}/translate",
+    summary="选中文本翻译",
+    description="将选中的英文段落翻译为中文（流式输出）。",
+)
 async def translate_selection(paper_id: str, body: TextRequest):
     system_prompt = "你是一位专业翻译。请将以下英文学术文本翻译为准确、流畅的中文。只输出翻译结果，不要添加解释。"
 
@@ -365,7 +419,11 @@ async def translate_selection(paper_id: str, body: TextRequest):
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
-@router.post("/{paper_id}/explain-selection")
+@router.post(
+    "/{paper_id}/explain-selection",
+    summary="选中文本解释",
+    description="解释选中段落含义，包含翻译与术语解释（流式输出）。",
+)
 async def explain_selection(paper_id: str, body: TextRequest):
     system_prompt = """你是一位学术论文阅读助手。请解释以下学术文本的含义。
 包括：
@@ -381,7 +439,11 @@ async def explain_selection(paper_id: str, body: TextRequest):
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
-@router.post("/{paper_id}/summarize-selection")
+@router.post(
+    "/{paper_id}/summarize-selection",
+    summary="选中文本摘要",
+    description="对选中文本生成简短摘要（流式输出）。",
+)
 async def summarize_selection(paper_id: str, body: TextRequest):
     system_prompt = """你是一位学术论文阅读助手。请对以下选中内容做简要摘要。
 要求：
@@ -398,7 +460,11 @@ async def summarize_selection(paper_id: str, body: TextRequest):
 
 # ── Annotations ───────────────────────────────
 
-@router.get("/{paper_id}/annotations")
+@router.get(
+    "/{paper_id}/annotations",
+    summary="获取批注列表",
+    description="获取论文的全部批注记录。",
+)
 def list_annotations(paper_id: str, db=Depends(get_db)):
     rows = db.execute(
         "SELECT * FROM paper_annotations WHERE paper_id=? ORDER BY created_at DESC",
@@ -407,7 +473,11 @@ def list_annotations(paper_id: str, db=Depends(get_db)):
     return [dict(r) for r in rows]
 
 
-@router.post("/{paper_id}/annotations")
+@router.post(
+    "/{paper_id}/annotations",
+    summary="新增批注",
+    description="创建高亮或笔记批注。",
+)
 def create_annotation(paper_id: str, body: AnnotationCreate, db=Depends(get_db)):
     ann_id = str(uuid.uuid4())
     db.execute(
@@ -419,7 +489,11 @@ def create_annotation(paper_id: str, body: AnnotationCreate, db=Depends(get_db))
     return {"id": ann_id, "type": body.type, "selected_text": body.selected_text}
 
 
-@router.delete("/annotations/{annotation_id}")
+@router.delete(
+    "/annotations/{annotation_id}",
+    summary="删除批注",
+    description="删除指定批注。",
+)
 def delete_annotation(annotation_id: str, db=Depends(get_db)):
     db.execute("DELETE FROM paper_annotations WHERE id=?", (annotation_id,))
     db.commit()
@@ -428,11 +502,15 @@ def delete_annotation(annotation_id: str, db=Depends(get_db)):
 
 # ── PDF File Serving ──────────────────────────
 
-@router.get("/{paper_id}/pdf")
+@router.get(
+    "/{paper_id}/pdf",
+    summary="获取 PDF",
+    description="返回本地 PDF 文件或远程 PDF 地址。",
+)
 def serve_pdf(paper_id: str, db=Depends(get_db)):
     row = db.execute("SELECT pdf_path, pdf_url FROM papers WHERE id=?", (paper_id,)).fetchone()
     if not row:
-        raise HTTPException(404, "Paper not found")
+        raise HTTPException(404, "未找到该论文。")
 
     if row["pdf_path"] and os.path.exists(row["pdf_path"]):
         return FileResponse(row["pdf_path"], media_type="application/pdf")
@@ -441,4 +519,4 @@ def serve_pdf(paper_id: str, db=Depends(get_db)):
         # Return the URL for client-side fetching
         return {"pdf_url": row["pdf_url"]}
 
-    raise HTTPException(404, "No PDF available for this paper")
+    raise HTTPException(404, "该论文没有可用 PDF。")

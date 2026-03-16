@@ -7,6 +7,7 @@ import uuid
 import sqlite3
 import asyncio
 from datetime import datetime
+from typing import Optional
 
 DB_PATH = os.getenv("DB_PATH", "./db/xiaotiao.db")
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "papers")
@@ -21,7 +22,7 @@ def _connect():
     return conn
 
 
-def extract_arxiv_id(url: str) -> str | None:
+def extract_arxiv_id(url: str) -> Optional[str]:
     """Extract arXiv paper ID from URL."""
     patterns = [
         r'arxiv\.org/abs/(\d+\.\d+)',

@@ -1,4 +1,4 @@
-// XiaoTiao App — Main Entry with Liquid Glass Interaction System
+// ZaiYi App — Main Entry with Liquid Glass Interaction System
 import './style.css';
 import { Router } from './router.js';
 import {

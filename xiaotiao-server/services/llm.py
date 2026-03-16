@@ -5,7 +5,9 @@ import ssl
 import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, AsyncGenerator
+
+import httpx
 
 try:
     from anthropic import AsyncAnthropic
@@ -21,6 +23,10 @@ def _llm_provider() -> str:
     provider = _env("LLM_PROVIDER", "").lower()
     if provider:
         return provider
+    if _env("GEMINI_API_KEY"):
+        return "gemini"
+    if _env("OPENAI_API_KEY"):
+        return "openai"
     if _env("QWEN_API_KEY"):
         return "qwen"
     if _env("ANTHROPIC_API_KEY"):
@@ -100,6 +106,248 @@ def _openai_compatible_call(payload: dict) -> dict:
             raise RuntimeError(f"Qwen URL error: {exc}") from exc
 
     raise RuntimeError("Qwen request failed after retries")
+
+
+def _openai_base_url() -> str:
+    base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    return base_url
+
+
+def _openai_api_key() -> str:
+    api_key = _env("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is missing.")
+    return api_key
+
+
+def _gemini_base_url() -> str:
+    base_url = _env("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+    return base_url
+
+
+def _gemini_api_key() -> str:
+    api_key = _env("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is missing.")
+    return api_key
+
+
+def _extract_gemini_text(payload: dict) -> str:
+    candidates = payload.get("candidates") if isinstance(payload, dict) else None
+    if not candidates:
+        return ""
+    parts = candidates[0].get("content", {}).get("parts", [])
+    text_chunks = []
+    for part in parts:
+        if isinstance(part, dict) and part.get("text"):
+            text_chunks.append(str(part.get("text")))
+    return "".join(text_chunks)
+
+
+async def _call_openai_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
+    model = _env("OPENAI_MODEL", "gpt-4o-mini")
+    max_retries = int(_env("OPENAI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "120"))
+    payload = {
+        "model": model,
+        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+                + "\n\nIMPORTANT: Return one raw valid JSON object only. No markdown wrappers.",
+            },
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {_openai_api_key()}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(f"{_openai_base_url()}/chat/completions", json=payload, headers=headers)
+            if resp.status_code >= 400:
+                retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                if retryable and attempt < max_retries:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+                    continue
+                detail = ""
+                try:
+                    err_payload = resp.json()
+                    err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                    detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                except Exception:
+                    detail = resp.text
+                raise RuntimeError(f"OpenAI API {resp.status_code}: {detail}")
+            data = resp.json()
+            break
+    content = _extract_message_content(data["choices"][0]["message"]["content"])
+    return json.loads(_clean_json_text(content))
+
+
+async def _call_gemini_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
+    model = _env("GEMINI_MODEL", "gemini-2.5-flash")
+    max_retries = int(_env("GEMINI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("GEMINI_HTTP_TIMEOUT", "120"))
+    combined = f"{system_prompt}\n\n{user_prompt}".strip()
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": combined}],
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.7,
+        },
+    }
+    headers = {
+        "x-goog-api-key": _gemini_api_key(),
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(f"{_gemini_base_url()}/models/{model}:generateContent", json=payload, headers=headers)
+            if resp.status_code >= 400:
+                retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                if retryable and attempt < max_retries:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+                    continue
+                detail = ""
+                try:
+                    err_payload = resp.json()
+                    err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                    detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                except Exception:
+                    detail = resp.text
+                raise RuntimeError(f"Gemini API {resp.status_code}: {detail}")
+            data = resp.json()
+            break
+    text = _extract_gemini_text(data)
+    return json.loads(_clean_json_text(text))
+
+
+async def _call_openai_stream(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> AsyncGenerator[str, None]:
+    model = _env("OPENAI_MODEL", "gpt-4o-mini")
+    max_retries = int(_env("OPENAI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "120"))
+    payload = {
+        "model": model,
+        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "stream": True,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {_openai_api_key()}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            async with client.stream(
+                "POST",
+                f"{_openai_base_url()}/chat/completions",
+                json=payload,
+                headers=headers,
+            ) as resp:
+                if resp.status_code >= 400:
+                    retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                    if retryable and attempt < max_retries:
+                        await asyncio.sleep(0.8 * (attempt + 1))
+                        continue
+                    detail = ""
+                    try:
+                        err_payload = await resp.json()
+                        err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                        detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                    except Exception:
+                        detail = await resp.aread()
+                    raise RuntimeError(f"OpenAI API {resp.status_code}: {detail}")
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        chunk = line[len("data: "):].strip()
+                    else:
+                        continue
+                    if chunk == "[DONE]":
+                        return
+                    try:
+                        data = json.loads(chunk)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    text = delta.get("content")
+                    if text:
+                        yield text
+            return
+
+
+async def _call_gemini_stream(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> AsyncGenerator[str, None]:
+    model = _env("GEMINI_MODEL", "gemini-2.5-flash")
+    max_retries = int(_env("GEMINI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("GEMINI_HTTP_TIMEOUT", "120"))
+    combined = f"{system_prompt}\n\n{user_prompt}".strip()
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": combined}],
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.7,
+        },
+    }
+    headers = {
+        "x-goog-api-key": _gemini_api_key(),
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            async with client.stream(
+                "POST",
+                f"{_gemini_base_url()}/models/{model}:streamGenerateContent",
+                json=payload,
+                headers=headers,
+            ) as resp:
+                if resp.status_code >= 400:
+                    retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                    if retryable and attempt < max_retries:
+                        await asyncio.sleep(0.8 * (attempt + 1))
+                        continue
+                    detail = ""
+                    try:
+                        err_payload = await resp.json()
+                        err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                        detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                    except Exception:
+                        detail = await resp.aread()
+                    raise RuntimeError(f"Gemini API {resp.status_code}: {detail}")
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    chunk = line
+                    if line.startswith("data: "):
+                        chunk = line[len("data: "):].strip()
+                    if chunk == "[DONE]":
+                        return
+                    try:
+                        data = json.loads(chunk)
+                    except json.JSONDecodeError:
+                        continue
+                    text = _extract_gemini_text(data)
+                    if text:
+                        yield text
+            return
 
 
 anthropic_key = _env("ANTHROPIC_API_KEY")
@@ -203,6 +451,59 @@ async def _call_anthropic_vision_json(
     return json.loads(_clean_json_text(content))
 
 
+async def _call_gemini_vision_json(
+    system_prompt: str, user_prompt: str, base64_image: str, media_type: str, max_tokens: int = 4000
+) -> dict:
+    model = _env("GEMINI_MODEL", "gemini-2.5-flash")
+    max_retries = int(_env("GEMINI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("GEMINI_HTTP_TIMEOUT", "120"))
+    combined = f"{system_prompt}\n\n{user_prompt}".strip()
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": combined},
+                    {
+                        "inline_data": {
+                            "mime_type": media_type,
+                            "data": base64_image,
+                        }
+                    },
+                ],
+            }
+        ],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.7,
+        },
+    }
+    headers = {
+        "x-goog-api-key": _gemini_api_key(),
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(f"{_gemini_base_url()}/models/{model}:generateContent", json=payload, headers=headers)
+            if resp.status_code >= 400:
+                retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                if retryable and attempt < max_retries:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+                    continue
+                detail = ""
+                try:
+                    err_payload = resp.json()
+                    err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                    detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                except Exception:
+                    detail = resp.text
+                raise RuntimeError(f"Gemini API {resp.status_code}: {detail}")
+            data = resp.json()
+            break
+    text = _extract_gemini_text(data)
+    return json.loads(_clean_json_text(text))
+
+
 async def mock_claude_json(system_prompt: str, user_prompt: str) -> dict:
     await asyncio.sleep(0.5)
     system_lower = system_prompt.lower()
@@ -239,25 +540,26 @@ async def mock_claude_json(system_prompt: str, user_prompt: str) -> dict:
             "key_sentences": [{"text": "It is very important.", "reason": "Highlighting significance."}],
         }
 
-    if "three distinct styles" in system_lower or '"variants"' in system_prompt:
+    if "three distinct styles" in system_lower or '"variants"' in system_prompt or "翻译" in system_prompt or "translation" in system_lower:
         has_user_translation = "user's explicit translation attempt" in user_lower and '""' not in user_prompt
         return {
             "variants": [
-                {"style": "literal", "label": "直译版 Literal", "text": "这是直译版本 (Mock)"},
-                {"style": "legal", "label": "法律表达版 Legal", "text": "这是法律专业翻译版本 (Mock)"},
-                {"style": "plain", "label": "简明表达版 Plain", "text": "这是简明翻译版本 (Mock)"},
+                {"style": "literal", "label": "直译版", "text": "这是直译版本（模拟输出）"},
+                {"style": "legal", "label": "法律表达版", "text": "这是法律专业翻译版本（模拟输出）"},
+                {"style": "plain", "label": "简明表达版", "text": "这是简明翻译版本（模拟输出）"},
             ],
             "terms": [{"term": "tribunal", "definition_zh": "仲裁庭"}, {"term": "interim measures", "definition_zh": "临时措施"}],
-            "notes": ["Legal style favors precision and formality.", "Plain style prioritizes readability."],
+            "notes": ["法律表达版需强调术语准确与正式措辞。", "简明表达版应优先可读性与清晰性。"],
+            "common_errors": ["忽略法律术语固定译法。", "被动结构处理不当导致语义偏差。"],
             "confidence_hint": "high",
             "critique": {
                 "score": "85 / 100",
-                "feedback": "Your translation captures the core meaning but can be more formal.",
+                "feedback": "译文基本传达了原意，但法律语体仍可更正式。",
                 "improvements": [
                     {
                         "original": "法院可以先做安排",
                         "suggested": "仲裁庭有权裁定临时措施",
-                        "reason": "Use domain-specific legal terminology and stronger modal expression.",
+                        "reason": "使用更准确的法律术语并强化法律语气。",
                     }
                 ],
             }
@@ -278,7 +580,13 @@ async def call_claude_stream(system_prompt: str, user_prompt: str, max_tokens: i
     """Yield text chunks from the LLM as a generator (for StreamingResponse)."""
     provider = _llm_provider()
 
-    if provider == "anthropic" and anthropic_client:
+    if provider == "gemini":
+        async for text in _call_gemini_stream(system_prompt, user_prompt, max_tokens=max_tokens):
+            yield text
+    elif provider == "openai":
+        async for text in _call_openai_stream(system_prompt, user_prompt, max_tokens=max_tokens):
+            yield text
+    elif provider == "anthropic" and anthropic_client:
         async with anthropic_client.messages.stream(
             model=_env("ANTHROPIC_MODEL", "claude-3-7-sonnet-20250219"),
             max_tokens=max_tokens,
@@ -305,6 +613,10 @@ async def call_claude_stream(system_prompt: str, user_prompt: str, max_tokens: i
 async def call_claude_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
     provider = _llm_provider()
     try:
+        if provider == "gemini":
+            return await _call_gemini_json(system_prompt, user_prompt, max_tokens=max_tokens)
+        if provider == "openai":
+            return await _call_openai_json(system_prompt, user_prompt, max_tokens=max_tokens)
         if provider == "qwen":
             return await _call_qwen_json(system_prompt, user_prompt, max_tokens=max_tokens)
         if provider == "anthropic":
@@ -323,12 +635,18 @@ async def call_claude_vision_json(
 ) -> dict:
     provider = _llm_provider()
     try:
+        if provider == "gemini":
+            return await _call_gemini_vision_json(
+                system_prompt, user_prompt, base64_image, media_type, max_tokens=max_tokens
+            )
         if provider == "qwen":
             return await _call_qwen_vision_json(system_prompt, user_prompt, base64_image, media_type, max_tokens=max_tokens)
         if provider == "anthropic":
             return await _call_anthropic_vision_json(
                 system_prompt, user_prompt, base64_image, media_type, max_tokens=max_tokens
             )
+        if provider == "openai":
+            raise RuntimeError("OpenAI vision is not configured for this project.")
         print("Using LLM Vision JSON MOCK (No provider key)")
         return await mock_claude_json(system_prompt, user_prompt)
     except Exception as exc:

@@ -6,14 +6,19 @@ from services.llm import call_claude_json
 from services.srs import SRSEngine
 from db.database import get_db
 
-router = APIRouter(prefix="/topic", tags=["topic"])
+router = APIRouter(prefix="/topic", tags=["话题生成"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-@router.post("/generate", response_model=TopicGenerateResponse)
+@router.post(
+    "/generate",
+    response_model=TopicGenerateResponse,
+    summary="生成话题文章",
+    description="根据指定主题、领域与难度生成学习文章，并返回新词与术语。",
+)
 async def generate_topic(req: TopicGenerateRequest, db = Depends(get_db)):
     system_prompt = load_prompt("topic_generate.txt")
 
@@ -61,4 +66,4 @@ Please generate an article based on the following specs:
         
         return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM returned malformed data: {e}. Raw data: {data}")
+        raise HTTPException(status_code=500, detail=f"LLM 返回数据格式错误：{e}。原始数据：{data}")

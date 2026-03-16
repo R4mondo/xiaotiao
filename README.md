@@ -94,3 +94,19 @@ LLM_PROVIDER=anthropic
 ANTHROPIC_API_KEY=你的key
 ANTHROPIC_MODEL=claude-3-7-sonnet-20250219
 ```
+
+OpenAI 示例：
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=你的key
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Gemini 示例：
+
+```env
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=你的key
+GEMINI_MODEL=gemini-2.5-flash
+```

@@ -13,21 +13,53 @@ export function renderTrackerPage() {
       <p style="color:var(--text-secondary);margin-bottom:32px;">追踪感兴趣的研究主题，自动发现最新论文。</p>
 
       <!-- Add Topic -->
-      <div class="glass-panel" style="padding:24px;border-radius:16px;margin-bottom:32px;display:flex;gap:12px;align-items:flex-end;">
-        <div style="flex:1;">
-          <label style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:6px;display:block;">追踪主题</label>
-          <input type="text" id="tracker-topic-input" class="input-field"
-            placeholder="输入追踪主题关键词，如 LLM reasoning, diffusion model..."
-            style="width:100%;">
+      <div class="glass-panel" style="padding:24px;border-radius:16px;margin-bottom:32px;">
+        <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;">
+          <div style="flex:1;">
+            <label style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:6px;display:block;">追踪主题</label>
+            <input type="text" id="tracker-topic-input" class="input-field"
+              placeholder="输入追踪主题关键词，如 LLM reasoning, diffusion model..."
+              style="width:100%;">
+          </div>
+          <div>
+            <label style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:6px;display:block;">检查频率</label>
+            <select id="tracker-frequency" class="input-field" style="min-width:120px;">
+              <option value="daily">每日检查</option>
+              <option value="weekly">每周检查</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:6px;display:block;">检查频率</label>
-          <select id="tracker-frequency" class="input-field" style="min-width:120px;">
-            <option value="daily">每日检查</option>
-            <option value="weekly">每周检查</option>
-          </select>
+        <!-- Source Selection -->
+        <div style="margin-bottom:16px;">
+          <label style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:8px;display:block;">来源选择</label>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
+              <input type="checkbox" class="tracker-source-cb" value="arxiv" checked style="accent-color:#f472b6;">
+              <span>ArXiv</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
+              <input type="checkbox" class="tracker-source-cb" value="ssrn" style="accent-color:#f472b6;">
+              <span>SSRN</span>
+              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
+              <input type="checkbox" class="tracker-source-cb" value="cnki" style="accent-color:#f472b6;">
+              <span>CNKI (中国知网)</span>
+              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
+              <input type="checkbox" class="tracker-source-cb" value="heinonline" style="accent-color:#f472b6;">
+              <span>HeinOnline</span>
+              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
+              <input type="checkbox" class="tracker-source-cb" value="google_scholar" style="accent-color:#f472b6;">
+              <span>Google Scholar</span>
+              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+            </label>
+          </div>
         </div>
-        <button class="btn btn--primary" id="btn-add-topic" style="padding:10px 20px;white-space:nowrap;">
+        <button class="btn btn--primary" id="btn-add-topic" style="padding:10px 20px;white-space:nowrap;width:100%;">
           添加追踪
         </button>
       </div>
@@ -104,6 +136,12 @@ async function loadTopics() {
     container.innerHTML = topics.map(t => {
       const lastChecked = t.last_checked_at ? formatRelativeTime(t.last_checked_at) : '从未';
       const freqLabel = t.check_frequency === 'daily' ? '每日' : '每周';
+      const sources = Array.isArray(t.sources) ? t.sources : ['arxiv'];
+      const sourceTags = sources.map(s => {
+        const label = SOURCE_LABELS[s] || s;
+        const isComingSoon = COMING_SOON_SOURCES.includes(s);
+        return `<span style="background:rgba(244,114,182,0.08);color:${isComingSoon ? 'var(--text-muted)' : '#f472b6'};padding:2px 8px;border-radius:8px;font-size:0.7rem;">${escapeHtml(label)}${isComingSoon ? ' (即将)' : ''}</span>`;
+      }).join('');
 
       return `
         <div class="glass-panel" style="padding:20px;border-radius:14px;border-left:3px solid #f472b6;">
@@ -111,9 +149,12 @@ async function loadTopics() {
             <h3 style="color:var(--text-primary);font-size:1rem;font-weight:600;">${escapeHtml(t.title)}</h3>
             <button onclick="window.__deleteTopic('${t.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;">✕</button>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
             <span style="background:rgba(244,114,182,0.1);color:#f472b6;padding:2px 8px;border-radius:8px;font-size:0.75rem;">${freqLabel}</span>
             <span style="color:var(--text-muted);font-size:0.8rem;">上次检查: ${lastChecked}</span>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;">
+            ${sourceTags}
           </div>
           <button class="btn btn--secondary" onclick="window.__checkNow('${t.id}')" style="width:100%;padding:8px;font-size:0.85rem;">
             立即检查
@@ -179,12 +220,43 @@ async function loadDiscoveredPapers() {
   }
 }
 
+const SOURCE_LABELS = {
+  arxiv: 'ArXiv',
+  ssrn: 'SSRN',
+  cnki: 'CNKI',
+  heinonline: 'HeinOnline',
+  google_scholar: 'Google Scholar',
+};
+
+const COMING_SOON_SOURCES = ['ssrn', 'cnki', 'heinonline', 'google_scholar'];
+
+function getSelectedSources() {
+  const checkboxes = document.querySelectorAll('.tracker-source-cb:checked');
+  return Array.from(checkboxes).map(cb => cb.value);
+}
+
 async function addTopic() {
   const input = document.getElementById('tracker-topic-input');
   const title = input.value.trim();
   if (!title) return window.showToast('请输入主题关键词', 'warning');
 
   const frequency = document.getElementById('tracker-frequency').value;
+  const sources = getSelectedSources();
+
+  if (sources.length === 0) return window.showToast('请至少选择一个来源', 'warning');
+
+  // Check if any coming-soon sources are selected alongside arxiv
+  const comingSoon = sources.filter(s => COMING_SOON_SOURCES.includes(s));
+  if (comingSoon.length > 0) {
+    const comingSoonLabels = comingSoon.map(s => SOURCE_LABELS[s]).join('、');
+    const hasArxiv = sources.includes('arxiv');
+    if (!hasArxiv) {
+      window.showToast(`${comingSoonLabels} 尚未上线，请至少选择 ArXiv`, 'warning');
+      return;
+    }
+    window.showToast(`${comingSoonLabels} 即将上线，目前仅 ArXiv 生效`, 'info');
+  }
+
   const btn = document.getElementById('btn-add-topic');
   btn.disabled = true;
 
@@ -192,7 +264,7 @@ async function addTopic() {
     await fetch(`${API_BASE}/topics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, check_frequency: frequency })
+      body: JSON.stringify({ title, check_frequency: frequency, sources })
     });
     input.value = '';
     window.showToast('追踪主题已添加', 'success');

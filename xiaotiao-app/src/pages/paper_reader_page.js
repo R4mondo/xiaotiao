@@ -1,5 +1,5 @@
 // PDF Reader Page — /papers/:id/read
-import { streamAI, renderMarkdown } from '../utils/stream.js';
+import { streamAI, renderMarkdown, startSimulatedProgress } from '../utils/stream.js';
 
 const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
@@ -75,6 +75,10 @@ export async function initPaperReaderPage(params) {
   let summariesGenerated = new Set();
   let pdfDoc = null;
   let observer = null;
+  let pdfjsLibInstance = null;
+  let lastSelectionAction = null;
+  let lastSelectionText = '';
+  let lastReaderQuestion = '';
 
   // Load paper info
   try {
@@ -85,8 +89,14 @@ export async function initPaperReaderPage(params) {
 
   // Load PDF.js dynamically
   try {
-    const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+    const [pdfjsLib, workerUrlModule] = await Promise.all([
+      import('pdfjs-dist'),
+      import('pdfjs-dist/build/pdf.worker.mjs?url')
+    ]);
+    pdfjsLibInstance = pdfjsLib;
+    if (pdfjsLib.GlobalWorkerOptions.workerSrc !== workerUrlModule.default) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrlModule.default;
+    }
 
     // Fetch PDF
     const pdfRes = await fetch(`${API_BASE}/papers/${paperId}/pdf`);
@@ -113,7 +123,7 @@ export async function initPaperReaderPage(params) {
     document.getElementById('page-indicator').textContent = `第 1 / ${totalPages} 页`;
     document.getElementById('page-jump-input').max = totalPages;
 
-    renderAllPages(pdfDoc, scale);
+    renderAllPages(pdfDoc, scale, pdfjsLibInstance);
 
   } catch (e) {
     document.getElementById('pdf-loading').innerHTML = `
@@ -123,7 +133,7 @@ export async function initPaperReaderPage(params) {
     `;
   }
 
-  async function renderAllPages(doc, currentScale) {
+  async function renderAllPages(doc, currentScale, pdfjsLib) {
     const container = document.getElementById('pdf-container');
     container.innerHTML = '';
 
@@ -132,19 +142,44 @@ export async function initPaperReaderPage(params) {
       const viewport = page.getViewport({ scale: currentScale });
 
       const wrapper = document.createElement('div');
-      wrapper.style.cssText = `position:relative;margin-bottom:4px;`;
+      wrapper.style.cssText = `position:relative;margin-bottom:4px;width:${viewport.width}px;height:${viewport.height}px;`;
       wrapper.dataset.pageNum = i;
 
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      canvas.style.cssText = 'display:block;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:4px;';
+      canvas.style.cssText = 'display:block;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:4px;position:relative;z-index:1;';
+
+      const textLayerDiv = document.createElement('div');
+      textLayerDiv.className = 'textLayer';
+      textLayerDiv.style.cssText = `position:absolute;left:0;top:0;height:${viewport.height}px;width:${viewport.width}px;z-index:2;`;
 
       wrapper.appendChild(canvas);
+      wrapper.appendChild(textLayerDiv);
       container.appendChild(wrapper);
 
       const ctx = canvas.getContext('2d');
       await page.render({ canvasContext: ctx, viewport }).promise;
+
+      try {
+        const textContent = await page.getTextContent();
+        if (pdfjsLib.TextLayer) {
+          const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport
+          });
+          await textLayer.render();
+        } else if (pdfjsLib.renderTextLayer) {
+          await pdfjsLib.renderTextLayer({
+            textContent,
+            container: textLayerDiv,
+            viewport
+          });
+        }
+      } catch (_e) {
+        // Ignore text layer rendering errors
+      }
     }
 
     setupIntersectionObserver(doc);
@@ -178,7 +213,9 @@ export async function initPaperReaderPage(params) {
     window.__readerObserver = observer;
   }
 
-  async function generatePageSummary(doc, pageNum, paperId) {
+  async function generatePageSummary(doc, pageNum, paperId, force = false) {
+    if (!force && summariesGenerated.has(pageNum)) return;
+    if (force) summariesGenerated.add(pageNum);
     const page = await doc.getPage(pageNum);
     const textContent = await page.getTextContent();
     const text = textContent.items.map(item => item.str).join(' ');
@@ -193,20 +230,51 @@ export async function initPaperReaderPage(params) {
       placeholder.remove();
     }
 
-    const summaryDiv = document.createElement('div');
-    summaryDiv.style.cssText = 'border-left:3px solid var(--accent);padding-left:12px;';
-    summaryDiv.innerHTML = `
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">第 ${pageNum} 页</div>
-      <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;" id="summary-${pageNum}">
-        <span style="color:var(--text-muted);">生成中...</span>
-      </div>
-    `;
-    summariesContainer.appendChild(summaryDiv);
-    summariesContainer.scrollTop = summariesContainer.scrollHeight;
+    let summaryDiv = document.getElementById(`summary-wrap-${pageNum}`);
+    if (!summaryDiv) {
+      summaryDiv = document.createElement('div');
+      summaryDiv.id = `summary-wrap-${pageNum}`;
+      summaryDiv.style.cssText = 'border-left:3px solid var(--accent);padding-left:12px;';
+      summaryDiv.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+          <div style="font-size:0.75rem;color:var(--text-muted);">第 ${pageNum} 页</div>
+          <button class="btn btn--ghost btn--sm" data-regenerate="${pageNum}">🔄 重新生成</button>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;" id="summary-${pageNum}">
+          <span style="color:var(--text-muted);">生成中...</span>
+          <div id="summary-progress-${pageNum}" style="margin-top:8px;"></div>
+        </div>
+      `;
+      summariesContainer.appendChild(summaryDiv);
+      summariesContainer.scrollTop = summariesContainer.scrollHeight;
+      const regenBtn = summaryDiv.querySelector('[data-regenerate]');
+      if (regenBtn) {
+        regenBtn.addEventListener('click', () => generatePageSummary(doc, pageNum, paperId, true));
+      }
+    } else {
+      const target = document.getElementById(`summary-${pageNum}`);
+      if (target) {
+        target.innerHTML = `
+          <span style="color:var(--text-muted);">生成中...</span>
+          <div id="summary-progress-${pageNum}" style="margin-top:8px;"></div>
+        `;
+      }
+    }
 
     try {
       const target = document.getElementById(`summary-${pageNum}`);
+      const progressEl = document.getElementById(`summary-progress-${pageNum}`);
+      let progress = null;
+      if (progressEl) {
+        progress = startSimulatedProgress(progressEl, '');
+      }
+      let firstChunk = true;
       await streamAI(`/papers/${paperId}/page-summary`, { page_number: pageNum, page_text: text.slice(0, 3000) }, (accum) => {
+        if (firstChunk && progress) {
+          progress.complete();
+          setTimeout(() => progress.bar.destroy(), 300);
+          firstChunk = false;
+        }
         if (target) target.innerHTML = renderMarkdown(accum);
       });
     } catch (e) {
@@ -220,7 +288,7 @@ export async function initPaperReaderPage(params) {
     if (scale < 3.0) {
       scale += 0.2;
       document.getElementById('zoom-level').textContent = `${Math.round(scale * 100)}%`;
-      if (pdfDoc) renderAllPages(pdfDoc, scale);
+      if (pdfDoc && pdfjsLibInstance) renderAllPages(pdfDoc, scale, pdfjsLibInstance);
     }
   });
 
@@ -228,7 +296,7 @@ export async function initPaperReaderPage(params) {
     if (scale > 0.5) {
       scale -= 0.2;
       document.getElementById('zoom-level').textContent = `${Math.round(scale * 100)}%`;
-      if (pdfDoc) renderAllPages(pdfDoc, scale);
+      if (pdfDoc && pdfjsLibInstance) renderAllPages(pdfDoc, scale, pdfjsLibInstance);
     }
   });
 
@@ -246,10 +314,13 @@ export async function initPaperReaderPage(params) {
   const toolbar = document.getElementById('selection-toolbar');
   const resultPopover = document.getElementById('selection-result');
 
+  let currentPageForSelection = null;
   pdfContainer.addEventListener('mouseup', (e) => {
     const sel = window.getSelection();
     const text = sel.toString().trim();
     if (text.length > 0) {
+      const pageEl = e.target.closest('[data-page-num]');
+      currentPageForSelection = pageEl ? parseInt(pageEl.dataset.pageNum, 10) : null;
       toolbar.style.display = 'flex';
       toolbar.style.left = `${e.clientX - 100}px`;
       toolbar.style.top = `${e.clientY - 50}px`;
@@ -257,6 +328,7 @@ export async function initPaperReaderPage(params) {
     } else {
       toolbar.style.display = 'none';
       resultPopover.style.display = 'none';
+      currentPageForSelection = null;
     }
   });
 
@@ -267,58 +339,96 @@ export async function initPaperReaderPage(params) {
     }
   });
 
+  const runSelectionAction = async (action, selectedText) => {
+    if (!selectedText) return;
+    lastSelectionAction = action;
+    lastSelectionText = selectedText;
+
+    if (action === 'vocab') {
+      try {
+        await fetch(`${API_BASE}/vocab`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word: selectedText, source: 'paper', domain: 'general' })
+        });
+        window.showToast(`"${selectedText}" 已加入生词本`, 'success');
+      } catch (e) {
+        window.showToast('加入失败', 'error');
+      }
+      return;
+    }
+
+    if (action === 'highlight') {
+      try {
+        await fetch(`${API_BASE}/papers/${paperId}/annotations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'highlight',
+            selected_text: selectedText,
+            page_number: currentPageForSelection
+          })
+        });
+        window.showToast('已添加高亮', 'success');
+      } catch (e) {
+        window.showToast('添加失败', 'error');
+      }
+      return;
+    }
+
+    resultPopover.style.display = 'block';
+    resultPopover.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+        <button class="btn btn--ghost btn--sm" id="btn-selection-regenerate">🔄 重新生成</button>
+      </div>
+      <div id="selection-progress-container" style="min-width:200px;"></div>
+    `;
+
+    const selProgressContainer = document.getElementById('selection-progress-container');
+    const selProgress = startSimulatedProgress(selProgressContainer, action === 'translate' ? '翻译中...' : '生成摘要...');
+
+    const regenBtn = document.getElementById('btn-selection-regenerate');
+    if (regenBtn) {
+      regenBtn.addEventListener('click', () => runSelectionAction(lastSelectionAction, lastSelectionText));
+    }
+
+    const endpoint = action === 'translate'
+      ? `/papers/${paperId}/translate`
+      : `/papers/${paperId}/summarize-selection`;
+
+    try {
+      let firstChunk = true;
+      await streamAI(endpoint, { text: selectedText }, (text) => {
+        if (firstChunk) {
+          selProgress.complete();
+          firstChunk = false;
+        }
+        resultPopover.innerHTML = `
+          <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+            <button class="btn btn--ghost btn--sm" id="btn-selection-regenerate">🔄 重新生成</button>
+          </div>
+          <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.6;">${renderMarkdown(text)}</div>
+        `;
+        const regenBtnAfter = document.getElementById('btn-selection-regenerate');
+        if (regenBtnAfter) {
+          regenBtnAfter.addEventListener('click', () => runSelectionAction(lastSelectionAction, lastSelectionText));
+        }
+      });
+    } catch (e) {
+      selProgress.stop();
+      resultPopover.innerHTML = `<span style="color:#ef4444;font-size:0.85rem;">处理失败: ${e.message}</span>`;
+    }
+  };
+
   toolbar.querySelectorAll('.sel-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const action = btn.dataset.action;
       const selectedText = toolbar.dataset.selectedText;
       toolbar.style.display = 'none';
-
-      if (action === 'vocab') {
-        try {
-          await fetch(`${API_BASE}/vocab`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word: selectedText, source: 'paper', domain: 'general' })
-          });
-          window.showToast(`"${selectedText}" 已加入生词本`, 'success');
-        } catch (e) {
-          window.showToast('加入失败', 'error');
-        }
-        return;
-      }
-
-      if (action === 'highlight') {
-        try {
-          await fetch(`${API_BASE}/papers/${paperId}/annotations`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'highlight', selected_text: selectedText })
-          });
-          window.showToast('已添加高亮', 'success');
-        } catch (e) {
-          window.showToast('添加失败', 'error');
-        }
-        return;
-      }
-
-      // Translate or Summary
       const rect = btn.getBoundingClientRect();
-      resultPopover.style.display = 'block';
       resultPopover.style.left = `${rect.left}px`;
       resultPopover.style.top = `${rect.bottom + 8}px`;
-      resultPopover.innerHTML = '<span style="color:var(--text-muted);font-size:0.85rem;">处理中...</span>';
-
-      const endpoint = action === 'translate'
-        ? `/papers/${paperId}/translate`
-        : `/papers/${paperId}/summarize-selection`;
-
-      try {
-        await streamAI(endpoint, { text: selectedText }, (text) => {
-          resultPopover.innerHTML = `<div style="font-size:0.85rem;color:var(--text-primary);line-height:1.6;">${renderMarkdown(text)}</div>`;
-        });
-      } catch (e) {
-        resultPopover.innerHTML = `<span style="color:#ef4444;font-size:0.85rem;">处理失败</span>`;
-      }
+      await runSelectionAction(action, selectedText);
     });
   });
 
@@ -331,14 +441,39 @@ export async function initPaperReaderPage(params) {
 
     const responseDiv = document.getElementById('reader-chat-response');
     responseDiv.style.display = 'block';
-    responseDiv.innerHTML = '<span style="color:var(--text-muted);font-size:0.85rem;">思考中...</span>';
+    lastReaderQuestion = msg;
+    responseDiv.innerHTML = `<span style="color:var(--text-muted);font-size:0.85rem;">思考中...</span><div id="reader-chat-progress"></div>`;
+
+    const chatProgressEl = document.getElementById('reader-chat-progress');
+    const chatProgress = startSimulatedProgress(chatProgressEl, '');
 
     try {
+      let firstChunk = true;
       await streamAI(`/papers/${paperId}/chat`, { message: msg }, (text) => {
-        responseDiv.innerHTML = `<div style="font-size:0.85rem;color:var(--text-primary);line-height:1.6;max-height:200px;overflow-y:auto;">${renderMarkdown(text)}</div>`;
+        if (firstChunk) {
+          chatProgress.complete();
+          setTimeout(() => chatProgress.bar.destroy(), 300);
+          firstChunk = false;
+        }
+        responseDiv.innerHTML = `
+          <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+            <button class="btn btn--ghost btn--sm" id="btn-reader-chat-regenerate">🔄 重新生成</button>
+          </div>
+          <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.6;max-height:200px;overflow-y:auto;">${renderMarkdown(text)}</div>
+        `;
+        const regenBtn = document.getElementById('btn-reader-chat-regenerate');
+        if (regenBtn) {
+          regenBtn.addEventListener('click', () => {
+            if (!lastReaderQuestion) return;
+            document.getElementById('reader-chat-input').value = lastReaderQuestion;
+            document.getElementById('btn-reader-chat').click();
+          });
+        }
       });
     } catch (e) {
-      responseDiv.innerHTML = `<span style="color:#ef4444;font-size:0.85rem;">回答失败</span>`;
+      chatProgress.stop();
+      chatProgress.bar.destroy();
+      responseDiv.innerHTML = `<span style="color:#ef4444;font-size:0.85rem;">回答失败: ${e.message}</span>`;
     }
   });
 

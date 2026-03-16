@@ -8,14 +8,19 @@ import openpyxl
 from schemas_multimodal import MultimodalExtractResponse
 from services.llm import call_claude_json, call_claude_vision_json
 
-router = APIRouter(prefix="/multimodal", tags=["multimodal"])
+router = APIRouter(prefix="/multimodal", tags=["多模态解析"])
 
 def load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-@router.post("/extract", response_model=MultimodalExtractResponse)
+@router.post(
+    "/extract",
+    response_model=MultimodalExtractResponse,
+    summary="多模态抽取",
+    description="从文本、图片或 Office 文件中抽取单词与释义。",
+)
 async def extract_vocabulary(
     file: UploadFile = File(...),
     domain: str = Form("general")
@@ -38,7 +43,7 @@ async def extract_vocabulary(
             doc = docx.Document(BytesIO(contents))
             extracted_text = "\n".join([para.text for para in doc.paragraphs if para.text.strip() != ""])
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to parse Word document: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"解析 Word 文档失败：{str(e)}")
             
     elif filename.endswith(".xlsx"):
         try:
@@ -51,7 +56,7 @@ async def extract_vocabulary(
                     rows.append(" | ".join(non_empty))
             extracted_text = "\n".join(rows)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to parse Excel document: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"解析 Excel 文档失败：{str(e)}")
             
     # Vision approach
     elif filename.endswith((".jpg", ".jpeg", ".png")):
@@ -68,10 +73,10 @@ async def extract_vocabulary(
             )
             return MultimodalExtractResponse(**data)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Vision extraction failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"视觉抽取失败：{str(e)}")
             
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload .txt, .md, .docx, .xlsx, .jpg or .png")
+        raise HTTPException(status_code=400, detail="不支持的文件格式，请上传 .txt、.md、.docx、.xlsx、.jpg 或 .png")
 
     # If it's pure text, cap it around 4000 chars to avoid prompt blast
     if extracted_text:
@@ -82,6 +87,6 @@ async def extract_vocabulary(
             data = await call_claude_json(system_prompt, user_prompt, max_tokens=4000)
             return MultimodalExtractResponse(**data)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Text extraction failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"文本抽取失败：{str(e)}")
     
-    raise HTTPException(status_code=400, detail="Document appears to be empty.")
+    raise HTTPException(status_code=400, detail="文档内容为空。")

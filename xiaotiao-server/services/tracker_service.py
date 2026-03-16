@@ -1,28 +1,63 @@
 """Tracker service — topic persistence and ArXiv discovery."""
 
 import asyncio
+import json
 import os
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from typing import List
 
 from services.llm import call_claude_json
 
 
 def list_topics(db):
     rows = db.execute("SELECT * FROM topics ORDER BY created_at DESC").fetchall()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        # Parse sources JSON string back to list
+        try:
+            d["sources"] = json.loads(d.get("sources") or '["arxiv"]')
+        except (json.JSONDecodeError, TypeError):
+            d["sources"] = ["arxiv"]
+        result.append(d)
+    return result
 
 
-def create_topic(db, title: str, check_frequency: str):
+# Available sources registry
+AVAILABLE_SOURCES = {
+    "arxiv": {"label": "ArXiv", "status": "active"},
+    "ssrn": {"label": "SSRN", "status": "coming_soon"},
+    "cnki": {"label": "CNKI (中国知网)", "status": "coming_soon"},
+    "heinonline": {"label": "HeinOnline", "status": "coming_soon"},
+    "google_scholar": {"label": "Google Scholar", "status": "coming_soon"},
+}
+
+
+def create_topic(db, title: str, check_frequency: str, sources: List[str] = None):
+    if sources is None:
+        sources = ["arxiv"]
+    # Validate sources
+    valid_sources = [s for s in sources if s in AVAILABLE_SOURCES]
+    if not valid_sources:
+        valid_sources = ["arxiv"]
+
     topic_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
+    sources_json = json.dumps(valid_sources)
     db.execute(
-        "INSERT INTO topics (id, title, check_frequency, created_at) VALUES (?, ?, ?, ?)",
-        (topic_id, title, check_frequency, now),
+        "INSERT INTO topics (id, title, check_frequency, sources, created_at) VALUES (?, ?, ?, ?, ?)",
+        (topic_id, title, check_frequency, sources_json, now),
     )
     db.commit()
-    return {"id": topic_id, "title": title, "check_frequency": check_frequency, "created_at": now}
+    return {
+        "id": topic_id,
+        "title": title,
+        "check_frequency": check_frequency,
+        "sources": valid_sources,
+        "created_at": now,
+    }
 
 
 def delete_topic(db, topic_id: str):

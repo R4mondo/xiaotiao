@@ -1,5 +1,5 @@
 // Paper Detail Page — /papers/:id
-import { streamAI, renderMarkdown } from '../utils/stream.js';
+import { streamAI, renderMarkdown, startSimulatedProgress } from '../utils/stream.js';
 
 const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
@@ -52,7 +52,8 @@ export function renderPaperDetailPage(params) {
                 style="flex:1;font-size:0.9rem;" />
               <button class="btn btn--primary" id="btn-chat-send" style="padding:8px 16px;">发送</button>
             </div>
-            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;flex-wrap:wrap;">
+              <button class="btn btn--ghost btn--sm" id="btn-chat-regenerate">🔄 重新生成回复</button>
               <button class="btn btn--ghost btn--sm" id="btn-chat-add-vocab">+ 加入生词本</button>
             </div>
           </div>
@@ -73,6 +74,7 @@ export async function initPaperDetailPage(params) {
   const paperId = params.id;
   if (!paperId) return;
   let lastAssistantText = '';
+  let lastUserMessage = '';
 
   // Load paper data
   try {
@@ -108,6 +110,13 @@ export async function initPaperDetailPage(params) {
   document.getElementById('btn-chat-send').addEventListener('click', () => sendChat(paperId));
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(paperId); }
+  });
+  document.getElementById('btn-chat-regenerate').addEventListener('click', () => {
+    if (!lastUserMessage) {
+      window.showToast('暂无可重新生成的问题', 'warning');
+      return;
+    }
+    sendChat(paperId, lastUserMessage);
   });
 
   document.getElementById('btn-chat-add-vocab').addEventListener('click', () => {
@@ -170,15 +179,35 @@ function renderInsight(paper) {
   const container = document.getElementById('insight-content');
 
   if (paper.insight) {
-    container.innerHTML = renderMarkdown(paper.insight);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn btn--ghost btn--sm" id="btn-regenerate-insight">🔄 重新生成</button>
+      </div>
+      ${renderMarkdown(paper.insight)}
+    `;
+    const btn = document.getElementById('btn-regenerate-insight');
+    if (btn) btn.addEventListener('click', () => generateInsight(paper.id, {}, paper));
   } else if (paper.status === 'ready') {
+    // If paper has abstract but no insight, offer to use abstract
+    const hasAbstract = paper.abstract && paper.abstract.trim().length > 20;
     container.innerHTML = `
       <div style="text-align:center;padding:40px;">
         <p style="color:var(--text-muted);margin-bottom:16px;">尚未生成 AI 解读</p>
-        <button class="btn btn--primary" id="btn-generate-insight">生成 AI 解读</button>
+        <button class="btn btn--primary" id="btn-generate-insight" style="margin-bottom:8px;">生成 AI 解读</button>
+        ${hasAbstract ? `
+          <div style="margin-top:12px;">
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px;">检测到论文摘要，可基于摘要快速生成解读：</p>
+            <button class="btn btn--secondary btn--sm" id="btn-generate-from-abstract">基于摘要生成解读</button>
+          </div>
+        ` : ''}
       </div>
     `;
-    document.getElementById('btn-generate-insight').addEventListener('click', () => generateInsight(paper.id));
+    document.getElementById('btn-generate-insight').addEventListener('click', () => generateInsight(paper.id, {}, paper));
+    if (hasAbstract) {
+      document.getElementById('btn-generate-from-abstract').addEventListener('click', () => {
+        generateInsight(paper.id, { text: paper.abstract }, paper);
+      });
+    }
   } else if (paper.status === 'processing') {
     container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">论文正在处理中，请稍候...</div>`;
   } else {
@@ -186,16 +215,87 @@ function renderInsight(paper) {
   }
 }
 
-async function generateInsight(paperId) {
+function renderManualInsightInput(paperId, message) {
+  const container = document.getElementById('insight-content');
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <p style="color:#ef4444;margin:0;">${escapeHtml(message)}</p>
+      <p style="color:var(--text-muted);margin:0;">可粘贴测试文本生成解读：</p>
+      <textarea id="insight-manual-text" class="input-field" rows="8" placeholder="在此粘贴测试文本..."
+        style="width:100%;resize:vertical;line-height:1.6;"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn--secondary" id="btn-retry-insight">重试自动解析</button>
+        <button class="btn btn--primary" id="btn-generate-insight-text">用文本生成</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('btn-retry-insight').addEventListener('click', () => generateInsight(paperId));
+  document.getElementById('btn-generate-insight-text').addEventListener('click', () => {
+    const text = document.getElementById('insight-manual-text').value.trim();
+    if (!text) {
+      window.showToast('请先粘贴测试文本', 'warning');
+      return;
+    }
+    generateInsight(paperId, { text });
+  });
+}
+
+async function generateInsight(paperId, payload = {}, paper = null) {
   const container = document.getElementById('insight-content');
   container.innerHTML = `<div style="color:var(--text-muted);">正在生成 AI 解读...</div>`;
 
+  // If payload has no text and paper has an abstract, use it as fallback
+  if (!payload.text && paper && paper.abstract && paper.abstract.trim().length > 20) {
+    payload = { ...payload, text: payload.text || undefined };
+    // We'll send the abstract as fallback if the server returns empty text error
+  }
+
+  const progressContainer = document.createElement('div');
+  progressContainer.style.marginTop = '12px';
+  container.appendChild(progressContainer);
+  const progress = startSimulatedProgress(progressContainer, '正在分析论文内容...');
+
   try {
-    await streamAI(`/papers/${paperId}/insight`, {}, (text) => {
+    let firstChunk = true;
+    await streamAI(`/papers/${paperId}/insight`, payload, (text) => {
+      if (firstChunk) {
+        progress.complete();
+        setTimeout(() => progress.bar.destroy(), 500);
+        firstChunk = false;
+      }
       container.innerHTML = renderMarkdown(text);
     });
   } catch (e) {
-    container.innerHTML = `<div style="color:#ef4444;">生成失败: ${e.message}</div>`;
+    progress.stop();
+    progress.bar.destroy();
+    const msg = e.message || '生成失败';
+    if (msg.includes('暂无可用文本内容') || msg.includes('400')) {
+      // Try fallback with abstract if available
+      if (paper && paper.abstract && paper.abstract.trim().length > 20 && !payload.text) {
+        container.innerHTML = `<div style="color:var(--text-muted);margin-bottom:12px;">论文全文未找到，正在使用摘要生成解读...</div>`;
+        try {
+          const progressContainer2 = document.createElement('div');
+          container.appendChild(progressContainer2);
+          const progress2 = startSimulatedProgress(progressContainer2, '基于摘要生成中...');
+          let firstChunk2 = true;
+          await streamAI(`/papers/${paperId}/insight`, { text: paper.abstract }, (text) => {
+            if (firstChunk2) {
+              progress2.complete();
+              setTimeout(() => progress2.bar.destroy(), 500);
+              firstChunk2 = false;
+            }
+            container.innerHTML = renderMarkdown(text);
+          });
+          return;
+        } catch (e2) {
+          // Fall through to manual input
+        }
+      }
+      renderManualInsightInput(paperId, `生成失败：${msg}`);
+      return;
+    }
+    // Always show manual input form on failure
+    renderManualInsightInput(paperId, `生成失败：${msg}`);
   }
 }
 
@@ -260,14 +360,15 @@ function appendChatMessage(role, content) {
   container.scrollTop = container.scrollHeight;
 }
 
-async function sendChat(paperId) {
+async function sendChat(paperId, overrideMessage = '') {
   const input = document.getElementById('chat-input');
-  const message = input.value.trim();
+  const message = overrideMessage || input.value.trim();
   if (!message) return;
 
   input.value = '';
   const btn = document.getElementById('btn-chat-send');
   btn.disabled = true;
+  lastUserMessage = message;
 
   // Hide quick questions
   const qqs = document.getElementById('chat-quick-questions');
@@ -278,19 +379,32 @@ async function sendChat(paperId) {
 
   // Add streaming AI response
   const container = document.getElementById('chat-messages');
-  const built = buildAssistantMessage('<span style="color:var(--text-muted);">思考中...</span>');
+  const built = buildAssistantMessage('');
   const aiMsg = built.msg;
   const aiContent = built.contentEl;
+  aiContent.innerHTML = `<span style="color:var(--text-muted);">思考中...</span>`;
   container.appendChild(aiMsg);
+
+  const progressContainer = document.createElement('div');
+  aiContent.appendChild(progressContainer);
+  const progress = startSimulatedProgress(progressContainer, '');
   container.scrollTop = container.scrollHeight;
 
   try {
+    let firstChunk = true;
     await streamAI(`/papers/${paperId}/chat`, { message }, (text) => {
+      if (firstChunk) {
+        progress.complete();
+        setTimeout(() => progress.bar.destroy(), 300);
+        firstChunk = false;
+      }
       lastAssistantText = text;
       aiContent.innerHTML = renderMarkdown(text);
       container.scrollTop = container.scrollHeight;
     });
   } catch (e) {
+    progress.stop();
+    progress.bar.destroy();
     aiContent.innerHTML = `<span style="color:#ef4444;">回答失败: ${e.message}</span>`;
   } finally {
     btn.disabled = false;

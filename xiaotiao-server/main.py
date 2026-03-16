@@ -32,7 +32,12 @@ try:
 except Exception:
     multimodal = None
 
-app = FastAPI(title="XiaoTiao Server", version="1.0.0")
+app = FastAPI(
+    title="再译后端服务",
+    description="再译平台后端 API 文档与调试入口。",
+    version="1.0.0",
+    swagger_ui_parameters={"lang": "zh-CN"},
+)
 
 @app.on_event("startup")
 def on_startup():
@@ -53,9 +58,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
+@app.get(
+    "/health",
+    summary="健康检查",
+    description="用于探活与负载均衡的基础健康检查接口。",
+)
 def health_check():
-    return {"status": "ok", "db": "connected"} # We will update db status once connected
+    return {"status": "正常", "db": "已连接"}  # We will update db status once connected
 
 app.include_router(topic.router)
 app.include_router(article.router)

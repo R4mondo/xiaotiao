@@ -13,6 +13,12 @@ export function renderVocabPage() {
                     <span class="material-symbols-rounded" style="font-size: 18px;">refresh</span>
                     刷新
                 </button>
+                <button class="btn btn--primary" id="btn-upload-vocab">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">upload_file</span>
+                    上传词汇文件
+                </button>
+                <input type="file" id="vocab-file-input" style="display: none;"
+                    accept=".txt,.md,.csv,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg">
                 <button class="btn btn--primary" id="btn-add-word">
                     <span class="material-symbols-rounded" style="font-size: 18px;">add</span>
                     添加新词
@@ -67,6 +73,55 @@ export function renderVocabPage() {
                     <button class="btn btn--secondary" id="btn-prev-page" style="padding: 8px 16px;">上一页</button>
                     <button class="btn btn--secondary" id="btn-next-page" style="padding: 8px 16px;">下一页</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Progress Overlay -->
+    <div id="modal-upload-progress" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); z-index: 1001; align-items: center; justify-content: center;">
+        <div class="glass-panel" style="width: 420px; padding: 40px; border-radius: 20px; text-align: center;">
+            <div style="margin-bottom: 20px;">
+                <span class="material-symbols-rounded" style="font-size: 48px; color: var(--accent); animation: spin 1.2s linear infinite;">progress_activity</span>
+            </div>
+            <h3 style="color: var(--text-primary); font-size: 1.3rem; margin-bottom: 12px;" id="upload-progress-title">正在解析文件...</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem;" id="upload-progress-desc">AI 正在识别词汇，请稍候</p>
+        </div>
+    </div>
+
+    <!-- Import Preview Modal -->
+    <div id="modal-import-preview" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="glass-panel" style="width: 700px; max-height: 80vh; padding: 32px; border-radius: 20px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: var(--text-primary); font-size: 1.5rem; margin: 0;">词汇导入预览</h3>
+                <span style="color: var(--text-muted); font-size: 0.9rem;" id="import-preview-count"></span>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                <button class="btn btn--secondary" id="btn-import-select-all" style="padding: 6px 14px; font-size: 0.85rem;">全选</button>
+                <button class="btn btn--secondary" id="btn-import-deselect-all" style="padding: 6px 14px; font-size: 0.85rem;">取消全选</button>
+                <div style="flex:1;"></div>
+                <div class="input-wrapper" style="width: 160px;">
+                    <select id="import-domain-select" class="input-field" style="padding: 6px 12px; font-size: 0.85rem;">
+                        <option value="general">通用</option>
+                        <option value="international-law">国际法</option>
+                        <option value="commercial-law">商法</option>
+                        <option value="constitutional-law">宪法学</option>
+                        <option value="criminal-law">刑法学</option>
+                        <option value="ip-law">知识产权法</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;" id="import-preview-list">
+                <!-- Dynamically filled -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button class="btn btn--secondary" id="btn-import-cancel">取消</button>
+                <button class="btn btn--primary" id="btn-import-confirm">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">download</span>
+                    导入选中词汇
+                </button>
             </div>
         </div>
     </div>
@@ -145,8 +200,27 @@ export async function initVocabPage() {
         document.getElementById('modal-add-word').style.display = 'flex';
         document.getElementById('add-word-input').focus();
     });
-    
+
     document.getElementById('btn-submit-word').addEventListener('click', submitNewWord);
+
+    // File upload flow
+    document.getElementById('btn-upload-vocab').addEventListener('click', () => {
+        document.getElementById('vocab-file-input').click();
+    });
+    document.getElementById('vocab-file-input').addEventListener('change', handleFileUpload);
+    document.getElementById('btn-import-cancel').addEventListener('click', () => {
+        document.getElementById('modal-import-preview').style.display = 'none';
+        window.__pendingImportWords = [];
+    });
+    document.getElementById('btn-import-confirm').addEventListener('click', confirmImportWords);
+    document.getElementById('btn-import-select-all').addEventListener('click', () => {
+        document.querySelectorAll('#import-preview-list input[type="checkbox"]').forEach(cb => cb.checked = true);
+        updateImportCount();
+    });
+    document.getElementById('btn-import-deselect-all').addEventListener('click', () => {
+        document.querySelectorAll('#import-preview-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+        updateImportCount();
+    });
     
     // Filters & Pagination
     let searchTimeout;
@@ -346,6 +420,178 @@ async function submitNewWord() {
         showToast(e.message, 'error');
     } finally {
         btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
+// --- File Upload & Import Logic ---
+window.__pendingImportWords = [];
+
+async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Reset input so the same file can be re-uploaded
+    e.target.value = '';
+
+    const TEXT_EXTENSIONS = ['.txt', '.md', '.csv'];
+    const fileName = file.name.toLowerCase();
+    const isTextFile = TEXT_EXTENSIONS.some(ext => fileName.endsWith(ext));
+
+    // Show progress
+    document.getElementById('modal-upload-progress').style.display = 'flex';
+    document.getElementById('upload-progress-title').textContent = '正在解析文件...';
+    document.getElementById('upload-progress-desc').textContent = isTextFile
+        ? '正在读取并分析文本内容'
+        : 'AI 正在识别词汇，请稍候';
+
+    try {
+        let words = [];
+
+        if (isTextFile) {
+            // Read client-side first, then send text to server for AI parsing
+            const textContent = await readFileAsText(file);
+            if (!textContent.trim()) {
+                showToast('文件内容为空', 'warning');
+                return;
+            }
+            // Still send to server for AI extraction
+            words = await uploadFileToServer(file);
+        } else {
+            // Binary files: upload directly
+            words = await uploadFileToServer(file);
+        }
+
+        if (!words || words.length === 0) {
+            showToast('未能从文件中识别出词汇', 'warning');
+            return;
+        }
+
+        // Store and show preview
+        window.__pendingImportWords = words;
+        showImportPreview(words);
+    } catch (err) {
+        console.error('File upload error:', err);
+        showToast(`文件解析失败：${err.message}`, 'error');
+    } finally {
+        document.getElementById('modal-upload-progress').style.display = 'none';
+    }
+}
+
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('读取文件失败'));
+        reader.readAsText(file, 'utf-8');
+    });
+}
+
+async function uploadFileToServer(file) {
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('domain', 'general');
+
+    const res = await fetch(`${API_BASE}/vocab/import-file`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `上传失败 (${res.status})`);
+    }
+
+    const data = await res.json();
+    return data.words || [];
+}
+
+function showImportPreview(words) {
+    const list = document.getElementById('import-preview-list');
+    list.innerHTML = words.map((w, i) => `
+        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); ${i % 2 === 0 ? 'background: rgba(255,255,255,0.02);' : ''}">
+            <input type="checkbox" checked data-index="${i}"
+                style="width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;"
+                onchange="window.__updateImportCount()">
+            <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: #fff; font-size: 1.05rem;">${escapeHtml(w.word)}</span>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(w.part_of_speech || '')}</span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml(w.definition_zh || '(无释义)')}
+                </div>
+                ${w.example_sentence ? `<div style="color: rgba(255,255,255,0.3); font-size: 0.8rem; margin-top: 4px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(w.example_sentence)}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+
+    updateImportCount();
+    document.getElementById('modal-import-preview').style.display = 'flex';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+window.__updateImportCount = updateImportCount;
+function updateImportCount() {
+    const checkboxes = document.querySelectorAll('#import-preview-list input[type="checkbox"]');
+    const checked = [...checkboxes].filter(cb => cb.checked).length;
+    const total = checkboxes.length;
+    document.getElementById('import-preview-count').textContent = `已选 ${checked} / ${total} 词`;
+}
+
+async function confirmImportWords() {
+    const checkboxes = document.querySelectorAll('#import-preview-list input[type="checkbox"]');
+    const domain = document.getElementById('import-domain-select').value;
+    const selectedWords = [];
+
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            const idx = parseInt(cb.dataset.index);
+            const w = window.__pendingImportWords[idx];
+            if (w) {
+                selectedWords.push({
+                    word: w.word,
+                    definition_zh: w.definition_zh || '',
+                    part_of_speech: w.part_of_speech || 'n.',
+                    domain: domain,
+                    source: 'file_import',
+                    example_sentence: w.example_sentence || '',
+                });
+            }
+        }
+    });
+
+    if (selectedWords.length === 0) {
+        showToast('请至少选择一个词汇', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-import-confirm');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-rounded" style="font-size: 18px; animation: spin 1s linear infinite;">progress_activity</span> 导入中...';
+    btn.disabled = true;
+
+    try {
+        const result = await postJSON('/vocab/batch', selectedWords);
+        document.getElementById('modal-import-preview').style.display = 'none';
+        window.__pendingImportWords = [];
+
+        showToast(`成功导入 ${result.imported} 个词汇${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复词` : ''}`, 'success');
+
+        loadVocabStats();
+        loadVocabList();
+    } catch (err) {
+        showToast(`导入失败：${err.message}`, 'error');
+    } finally {
+        btn.innerHTML = originalHTML;
         btn.disabled = false;
     }
 }

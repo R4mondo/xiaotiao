@@ -107,5 +107,6 @@ class TranslationResponse(BaseModel):
     variants: List[TranslationVariant]
     terms: List[TermSimple]
     notes: List[str]
+    common_errors: List[str] = Field(default_factory=list)
     confidence_hint: str
     critique: Optional[Critique] = None
