@@ -37,7 +37,7 @@ export function renderHome() {
           </div>
           <div class="hero__stats">
             <div class="hero__stat">
-              <div class="hero__stat-value">4</div>
+              <div class="hero__stat-value">6</div>
               <div class="hero__stat-label">核心学习模块</div>
             </div>
             <div class="hero__stat">
@@ -56,6 +56,25 @@ export function renderHome() {
     <section class="modules">
       <div class="container">
         <div class="modules__grid">
+          <!-- Paper Library Card -->
+          <div class="module-card module-card--research" onclick="location.hash='/papers'" id="card-papers">
+            <div class="module-card__icon">📄</div>
+            <div class="module-card__subtitle">模块 · 论文</div>
+            <h3 class="module-card__title">论文库 (Paper Library)</h3>
+            <p class="module-card__desc">
+              批量导入学术论文，AI 智能解读核心要点，管理你的研究文献库。
+            </p>
+            <ul class="module-card__features">
+              <li class="module-card__feature">URL 批量导入 / PDF 上传</li>
+              <li class="module-card__feature">AI Insight 结构化解读</li>
+              <li class="module-card__feature">论文对话问答</li>
+              <li class="module-card__feature">PDF 逐页阅读 + 摘要</li>
+            </ul>
+            <div class="module-card__cta">
+              进入论文库 <span class="arrow">→</span>
+            </div>
+          </div>
+
           <!-- Topic Explorer Card -->
           <div class="module-card module-card--topic" onclick="location.hash='/topic'" id="card-topic">
             <div class="module-card__icon">🔍</div>
@@ -128,6 +147,25 @@ export function renderHome() {
             </ul>
             <div class="module-card__cta">
               打开生词本 <span class="arrow">→</span>
+            </div>
+          </div>
+
+          <!-- Tracker Card -->
+          <div class="module-card" onclick="location.hash='/tracker'" id="card-tracker" style="border-top: 3px solid #f472b6;">
+            <div class="module-card__icon">🔔</div>
+            <div class="module-card__subtitle">模块 · 追踪</div>
+            <h3 class="module-card__title">主题追踪 (Tracker)</h3>
+            <p class="module-card__desc">
+              追踪感兴趣的研究主题，自动发现最新论文，构建你的学术信息漏斗。
+            </p>
+            <ul class="module-card__features">
+              <li class="module-card__feature">关键词追踪主题</li>
+              <li class="module-card__feature">ArXiv 自动检索</li>
+              <li class="module-card__feature">一键收录到论文库</li>
+              <li class="module-card__feature">每日/每周自动检查</li>
+            </ul>
+            <div class="module-card__cta">
+              开始追踪 <span class="arrow">→</span>
             </div>
           </div>
 

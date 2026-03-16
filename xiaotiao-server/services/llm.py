@@ -274,6 +274,34 @@ async def mock_claude_json(system_prompt: str, user_prompt: str) -> dict:
     }
 
 
+async def call_claude_stream(system_prompt: str, user_prompt: str, max_tokens: int = 4000):
+    """Yield text chunks from the LLM as a generator (for StreamingResponse)."""
+    provider = _llm_provider()
+
+    if provider == "anthropic" and anthropic_client:
+        async with anthropic_client.messages.stream(
+            model=_env("ANTHROPIC_MODEL", "claude-3-7-sonnet-20250219"),
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0.7,
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+    elif provider == "qwen":
+        # Qwen doesn't support native streaming in our setup, so call sync and yield at once
+        result = await _call_qwen_json(system_prompt, user_prompt, max_tokens)
+        text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
+        yield text
+    else:
+        # Mock streaming
+        import asyncio as _asyncio
+        mock_text = "这是一段 AI 生成的模拟响应文本。在生产环境中，这里会是来自大语言模型的真实分析内容。"
+        for char in mock_text:
+            yield char
+            await _asyncio.sleep(0.02)
+
+
 async def call_claude_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
     provider = _llm_provider()
     try:

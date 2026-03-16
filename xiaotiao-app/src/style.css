@@ -40,6 +40,8 @@
   --article: #ff9500;
   --translation: #34c759;
   --research: #8b5cf6;
+  --papers: #8b5cf6;
+  --tracker: #f472b6;
   --purple: #af52de;
 
   /* Gradients */
@@ -292,7 +294,7 @@ select {
   border: var(--glass-border);
   border-radius: var(--r-pill);
   box-shadow: var(--shadow-glass), var(--glass-specular);
-  max-width: 720px;
+  max-width: 920px;
   width: calc(100% - 28px);
   transition: background var(--dur-normal) var(--ease),
               box-shadow var(--dur-normal) var(--ease),
@@ -1577,6 +1579,8 @@ textarea.form-input {
 .navbar__nav.segmented--article .nav-link.active { color: var(--article); }
 .navbar__nav.segmented--topic .nav-link.active { color: var(--topic); }
 .navbar__nav.segmented--research .nav-link.active { color: var(--research); }
+.navbar__nav.segmented--papers .nav-link.active { color: var(--papers); }
+.navbar__nav.segmented--tracker .nav-link.active { color: var(--tracker); }
 
 /* Legacy class aliases for backward compatibility */
 .direction-toggle {

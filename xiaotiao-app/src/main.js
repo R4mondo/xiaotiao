@@ -8,13 +8,21 @@ import {
 } from './pages.js';
 import { renderVocabPage, initVocabPage } from './vocab_page.js';
 import { renderProgressPage, initProgressPage } from './progress_page.js';
+import { renderPaperPage, initPaperPage } from './pages/paper_page.js';
+import { renderPaperDetailPage, initPaperDetailPage } from './pages/paper_detail_page.js';
+import { renderPaperReaderPage, initPaperReaderPage } from './pages/paper_reader_page.js';
+import { renderTrackerPage, initTrackerPage } from './pages/tracker_page.js';
 
 const router = new Router('app');
 
 router.register('/', renderHome);
+router.register('/papers', renderPaperPage, initPaperPage);
+router.register('/papers/:id', renderPaperDetailPage, initPaperDetailPage);
+router.register('/papers/:id/read', renderPaperReaderPage, initPaperReaderPage);
 router.register('/topic', renderTopicExplorer, initTopicExplorer);
 router.register('/article', renderArticleLab, initArticleLab);
 router.register('/translation', renderTranslationStudio, initTranslationStudio);
+router.register('/tracker', renderTrackerPage, initTrackerPage);
 router.register('/vocab', renderVocabPage, initVocabPage);
 router.register('/progress', renderProgressPage, initProgressPage);
 
@@ -230,14 +238,18 @@ router.resolve = function () {
       const hash = window.location.hash.slice(1) || '/';
       const navLinks = document.querySelectorAll('.navbar__nav .nav-link');
       navLinks.forEach(link => {
-        if (link.dataset.route === hash) {
+        const route = link.dataset.route;
+        const isActive = route === hash || (route !== '/' && hash.startsWith(route));
+        if (isActive) {
           link.classList.add('active');
           const segmentedContainer = document.getElementById('navbar-segmented');
           if (segmentedContainer) {
             segmentedContainer.className = 'navbar__nav segmented';
+            if (hash.startsWith('/papers')) segmentedContainer.classList.add('segmented--papers');
             if (hash.startsWith('/topic')) segmentedContainer.classList.add('segmented--topic');
             if (hash.startsWith('/article')) segmentedContainer.classList.add('segmented--article');
             if (hash.startsWith('/translation')) segmentedContainer.classList.add('segmented--translation');
+            if (hash.startsWith('/tracker')) segmentedContainer.classList.add('segmented--tracker');
             if (hash.startsWith('/vocab')) segmentedContainer.classList.add('segmented--vocab');
             if (hash.startsWith('/progress')) segmentedContainer.classList.add('segmented--progress');
           }

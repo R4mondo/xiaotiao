@@ -18,6 +18,9 @@ xiaotiao-server/**/*.pyc
 *.log
 .env
 
+# Paper uploads (large binary files)
+xiaotiao-server/uploads/papers/*.pdf
+
 # Local tooling / temp files
 .claude/
 暂不需要使用的文件/

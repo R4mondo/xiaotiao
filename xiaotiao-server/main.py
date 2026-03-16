@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover - fallback for minimal runtime env
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from db.database import init_db
-from routers import topic, article, translation, vocab, research
+from routers import topic, article, translation, vocab, research, papers, tracker, collections
 
 try:
     from routers import multimodal
@@ -61,6 +61,9 @@ app.include_router(article.router)
 app.include_router(translation.router)
 app.include_router(vocab.router)
 app.include_router(research.router)
+app.include_router(papers.router)
+app.include_router(tracker.router)
+app.include_router(collections.router)
 if multimodal:
     app.include_router(multimodal.router)
 
