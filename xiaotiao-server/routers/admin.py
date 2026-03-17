@@ -1509,9 +1509,41 @@ async def save_prompt(filename: str, request: Request):
 # ── Database Viewer + Editing with Approval ──────────────
 
 _DB_REGISTRY = {
-    "xiaotiao": {"path": os.getenv("DB_PATH", "./db/xiaotiao.db"), "label": "主数据库 (xiaotiao)"},
-    "auth": {"path": os.getenv("AUTH_DB_PATH", "./db/auth.db"), "label": "认证数据库 (auth)"},
+    "xiaotiao": {"path": os.getenv("DB_PATH", "./db/xiaotiao.db"), "label": "📚 小跳主数据库"},
+    "auth": {"path": os.getenv("AUTH_DB_PATH", "./db/auth.db"), "label": "🔐 用户认证数据库"},
 }
+
+# Chinese display names for tables based on their purpose
+_TABLE_LABELS = {
+    # xiaotiao.db tables
+    "vocabulary_items": "📖 生词本 — 用户保存的词汇",
+    "vocabulary_srs_states": "🧠 间隔复习状态 — SRS 记忆曲线",
+    "target_ranges": "🎯 目标词表 — 如 CET4/CET6/IELTS",
+    "target_range_words": "📝 目标词表词汇 — 各词表所含单词",
+    "article_styles": "🎨 文章风格 — 生成文章的风格模板",
+    "github_cases": "⚖️ 法律案例库 — GitHub 案例数据",
+    "org_units": "🏢 组织机构 — 单位/部门信息",
+    "rag_documents": "📄 RAG 文档 — 知识库原始文档",
+    "rag_chunks": "🔍 RAG 分片 — 文档向量化分片",
+    "papers": "📑 论文库 — 上传的学术论文",
+    "paper_annotations": "✏️ 论文标注 — 阅读批注和高亮",
+    "collections": "📂 论文集 — 论文分类收藏夹",
+    "collection_papers": "🔗 论文集关联 — 论文与集合的映射",
+    "topics": "💡 研究主题 — 用户创建的研究主题",
+    "topic_papers": "🔗 主题关联 — 论文与主题的映射",
+    "paper_chats": "💬 论文对话 — AI 与论文的问答记录",
+    "paper_folders": "📁 论文文件夹 — 论文目录结构",
+    "reading_log": "📊 阅读记录 — 论文阅读进度追踪",
+    "topic_sources": "📰 主题来源 — 主题探索的文章来源",
+    # auth.db tables
+    "users": "👤 用户账户 — 注册用户信息",
+    "auth_sessions": "🔑 登录会话 — 用户认证 Token",
+}
+
+
+def _table_label(tname: str) -> str:
+    return _TABLE_LABELS.get(tname, f"📋 {tname}")
+
 
 _PENDING_CHANGES_PATH = os.path.join(os.path.dirname(__file__), "..", "pending_db_changes.json")
 
@@ -1601,7 +1633,8 @@ def admin_database(request: Request):
             for t in tables:
                 tname = t["name"]
                 count = conn.execute(f"SELECT COUNT(*) as c FROM [{tname}]").fetchone()["c"]
-                tables_html += f'<a class="db-table-link" href="/admin/database/{db_id}/{tname}"><span class="db-table-name">📋 {tname}</span><span class="db-table-count">{count} 行</span></a>'
+                tlabel = _table_label(tname)
+                tables_html += f'<a class="db-table-link" href="/admin/database/{db_id}/{tname}"><span class="db-table-name">{tlabel}</span><span class="db-table-count">{count} 行</span></a>'
             conn.close()
         except Exception as exc:
             tables_html = f'<div style="color:#f87171">❌ 无法连接: {exc}</div>'
@@ -1769,7 +1802,7 @@ def admin_database_table(request: Request, db_id: str, table_name: str):
 
     body = f"""
     <div class="section-header">
-        <h2>📋 {table_name}</h2>
+        <h2>{_table_label(table_name)}</h2>
         <a href="/admin/database" class="back-link">← 返回数据库列表</a>
     </div>
     <p style="color:#94a3b8;font-size:.8rem;margin-bottom:12px">🗄️ {db_info['label']} · {total} 行 · 点击行首「✏️ 编辑」可修改数据（需审批后生效）</p>
@@ -1872,7 +1905,7 @@ def admin_database_table(request: Request, db_id: str, table_name: str):
     }});
     </script>
     """
-    return HTMLResponse(_page(f"表: {table_name}", body))
+    return HTMLResponse(_page(f"{_table_label(table_name)}", body))
 
 
 # ── Database change API endpoints ──
