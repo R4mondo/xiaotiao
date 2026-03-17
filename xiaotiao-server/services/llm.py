@@ -227,6 +227,22 @@ def _extract_message_content(raw: Any) -> str:
     return str(raw)
 
 
+def _safe_openai_content(data: dict) -> str:
+    """Safely extract content from an OpenAI-compatible response.
+    Handles empty choices arrays from third-party proxies."""
+    choices = data.get("choices")
+    if not choices:
+        # Some proxies return error info in a different field
+        err = data.get("error")
+        if err:
+            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+            raise RuntimeError(f"API returned error: {msg}")
+        raise RuntimeError(f"API returned empty choices: {json.dumps(data, ensure_ascii=False)[:500]}")
+    message = choices[0].get("message", {})
+    content = message.get("content", "")
+    return _extract_message_content(content)
+
+
 def _openai_compatible_call(payload: dict) -> dict:
     api_key = _env("QWEN_API_KEY")
     if not api_key:
@@ -354,7 +370,7 @@ async def _call_openai_json(system_prompt: str, user_prompt: str, max_tokens: in
                 raise RuntimeError(f"OpenAI API {resp.status_code}: {detail}")
             data = resp.json()
             break
-    content = _extract_message_content(data["choices"][0]["message"]["content"])
+    content = _safe_openai_content(data)
     return json.loads(_clean_json_text(content))
 
 
@@ -546,7 +562,7 @@ async def _call_qwen_json(system_prompt: str, user_prompt: str, max_tokens: int 
         ],
     }
     response = await asyncio.to_thread(_openai_compatible_call, payload)
-    content = _extract_message_content(response["choices"][0]["message"]["content"])
+    content = _safe_openai_content(response)
     return json.loads(_clean_json_text(content))
 
 
@@ -575,7 +591,7 @@ async def _call_qwen_vision_json(
         ],
     }
     response = await asyncio.to_thread(_openai_compatible_call, payload)
-    content = _extract_message_content(response["choices"][0]["message"]["content"])
+    content = _safe_openai_content(response)
     return json.loads(_clean_json_text(content))
 
 
@@ -903,7 +919,7 @@ async def _call_openai_with_schema(
                 raise RuntimeError(f"OpenAI API {resp.status_code}: {detail}")
             data = resp.json()
             break
-    content = _extract_message_content(data["choices"][0]["message"]["content"])
+    content = _safe_openai_content(data)
     return json.loads(_clean_json_text(content))
 
 
