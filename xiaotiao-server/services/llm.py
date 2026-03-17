@@ -215,6 +215,7 @@ def _clean_json_text(content: str) -> str:
 
 def _robust_json_loads(text: str) -> dict:
     """Try multiple strategies to parse JSON from LLM output."""
+    import re
     cleaned = _clean_json_text(text)
 
     # Strategy 1: direct parse
@@ -223,44 +224,84 @@ def _robust_json_loads(text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Strategy 2: fix unescaped control characters inside strings
-    import re
+    # Strategy 2: iterative error-position repair
+    # Repeatedly parse, find the error position, fix the character there, retry
     fixed = cleaned
-    # Replace literal newlines/tabs inside JSON strings with escaped versions
-    fixed = fixed.replace('\r\n', '\\n').replace('\r', '\\n')
-    # Replace unescaped newlines within string values
-    fixed = re.sub(r'(?<=": ")(.*?)(?="[,}\]])', lambda m: m.group(0).replace('\n', '\\n').replace('\t', '\\t'), fixed, flags=re.DOTALL)
+    for attempt in range(50):  # max 50 micro-repairs
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError as e:
+            pos = e.pos
+            if pos is None:
+                break
+            # Truncated JSON - close brackets
+            if pos >= len(fixed):
+                open_sq = fixed.count('[') - fixed.count(']')
+                open_cu = fixed.count('{') - fixed.count('}')
+                suffix = ']' * max(0, open_sq) + '}' * max(0, open_cu)
+                if suffix:
+                    fixed += suffix
+                    continue
+                break
+            ch = fixed[pos]
+            # Newline inside string - escape it
+            if ch == '\n':
+                fixed = fixed[:pos] + '\\n' + fixed[pos + 1:]
+                continue
+            if ch == '\r':
+                fixed = fixed[:pos] + '\\n' + fixed[pos + 1:]
+                continue
+            # Tab inside string - escape it
+            if ch == '\t':
+                fixed = fixed[:pos] + '\\t' + fixed[pos + 1:]
+                continue
+            # Any other control character - remove it
+            if ord(ch) < 32 or ord(ch) == 127:
+                fixed = fixed[:pos] + fixed[pos + 1:]
+                continue
+            # For other errors (e.g. bad escapes, extra commas), try removing character
+            fixed = fixed[:pos] + fixed[pos + 1:]
+
+    # Strategy 3: remove all control characters and retry
+    fixed = re.sub(r'[\x00-\x09\x0b\x0c\x0e-\x1f\x7f]', '', cleaned)  # keep \n (0x0a) and \r (0x0d)
+    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
     try:
         return json.loads(fixed)
     except json.JSONDecodeError:
         pass
 
-    # Strategy 3: try to find the largest valid JSON by trimming from the end
-    # Scan further back for long responses (up to 2000 chars)
-    scan_range = min(len(cleaned), 2000)
+    # Strategy 4: nuclear - remove ALL control chars including newlines
+    fixed = re.sub(r'[\x00-\x1f\x7f]', ' ', cleaned)
+    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 5: truncate from end, balance brackets
+    scan_range = min(len(cleaned), 3000)
     for end_pos in range(len(cleaned), max(0, len(cleaned) - scan_range), -1):
         candidate = cleaned[:end_pos]
-        # Balance brackets and braces
-        open_brackets = candidate.count('[') - candidate.count(']')
-        candidate += ']' * max(0, open_brackets)
-        open_braces = candidate.count('{') - candidate.count('}')
-        candidate += '}' * max(0, open_braces)
+        open_sq = candidate.count('[') - candidate.count(']')
+        candidate += ']' * max(0, open_sq)
+        open_cu = candidate.count('{') - candidate.count('}')
+        candidate += '}' * max(0, open_cu)
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
 
-    # Strategy 4: remove all control characters and retry
-    fixed = re.sub(r'[\x00-\x1f\x7f]', ' ', cleaned)
-    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+    # Final: raise with diagnostic info
     try:
-        return json.loads(fixed)
+        json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        # Final fallback: raise with context
+        print(f"[JSON REPAIR FAILED] Error: {exc.msg} at pos {exc.pos}")
+        print(f"[JSON REPAIR FAILED] Context around error: ...{cleaned[max(0,exc.pos-50):exc.pos+50]}...")
         raise json.JSONDecodeError(
-            f"Could not parse LLM response as JSON (tried 4 strategies). First 500 chars: {cleaned[:500]}",
-            cleaned, 0
+            f"JSON repair failed ({exc.msg} at pos {exc.pos}). Context: {cleaned[max(0,exc.pos-30):exc.pos+30]}",
+            cleaned, exc.pos
         ) from exc
+    raise json.JSONDecodeError("JSON repair failed (unknown)", cleaned, 0)
 
 
 def _extract_message_content(raw: Any) -> str:
