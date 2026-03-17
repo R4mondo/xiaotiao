@@ -684,13 +684,12 @@ def admin_dashboard(request: Request):
         cur_badge_cls = "api-badge-active" if current_provider != "mock" else "api-badge-none"
         override_tag = '<span class="api-override">✏️ 手动指定</span>' if is_override else '<span class="api-default">🔄 全局默认</span>'
 
-        # Build dropdown options — each model as a separate option, grouped by provider
+        # Build dropdown options — only show providers that have keys configured
         options_html = f'<option value="default"{"" if is_override else " selected"}>🔄 使用全局默认</option>'
         for p in compatible:
-            if not p["compatible"]:
+            if not p["compatible"] or not p["has_key"]:
                 continue
-            avail = '' if p['has_key'] else ' ❌ 未配置Key'
-            options_html += f'<optgroup label="{p["name"]}{avail}">'
+            options_html += f'<optgroup label="{p["name"]}">'
             for model in p.get('models', []):
                 val = f'{p["id"]}:{model}'
                 sel = ' selected' if is_override and p['id'] == current_provider else ''
@@ -786,7 +785,7 @@ def admin_dashboard(request: Request):
     providers_info = [
         ("gemini", "Gemini", "gemini-2.5-flash", "GEMINI_API_KEY", "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta", True, True, True),
         ("openai", "OpenAI", "gpt-4o-mini", "OPENAI_API_KEY", "OPENAI_BASE_URL", "https://api.openai.com/v1", True, True, False),
-        ("qwen", "Qwen (通义千问)", "qwen-plus", "QWEN_API_KEY", "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1", True, False, True),
+        ("qwen", "Qwen (通义千问)", "qwen-plus", "QWEN_API_KEY", "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1", True, True, True),
         ("anthropic", "Anthropic", "claude-3-7-sonnet", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "https://api.anthropic.com", True, True, True),
     ]
     api_cards = ""

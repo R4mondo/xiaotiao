@@ -20,17 +20,22 @@ def _env(name: str, default: str = "") -> str:
 
 
 def _llm_provider() -> str:
+    """Detect LLM provider: explicit setting (if key exists) → auto-detect by key → mock."""
     provider = _env("LLM_PROVIDER", "").lower()
-    if provider:
-        return provider
-    if _env("GEMINI_API_KEY"):
-        return "gemini"
-    if _env("OPENAI_API_KEY"):
-        return "openai"
-    if _env("QWEN_API_KEY"):
-        return "qwen"
-    if _env("ANTHROPIC_API_KEY"):
-        return "anthropic"
+    if provider and provider != "mock":
+        # Verify the specified provider has its key configured
+        caps = PROVIDER_CAPABILITIES.get(provider, {})
+        env_key = caps.get("env_key", "")
+        if env_key and _env(env_key):
+            return provider
+        # Provider specified but no key — fall through to auto-detect
+    elif provider == "mock":
+        return "mock"
+    # Auto-detect: find first provider with a configured key
+    for pid, caps in PROVIDER_CAPABILITIES.items():
+        env_key = caps.get("env_key", "")
+        if env_key and _env(env_key):
+            return pid
     return "mock"
 
 
@@ -67,7 +72,7 @@ PROVIDER_CAPABILITIES: dict[str, dict] = {
         "default_model": "qwen-max",
         "env_key": "QWEN_API_KEY",
         "env_model": "QWEN_MODEL",
-        "json": True, "stream": False, "vision": True, "schema": False,
+        "json": True, "stream": True, "vision": True, "schema": False,
     },
     "deepseek": {
         "name": "DeepSeek",
@@ -885,9 +890,87 @@ async def call_claude_stream(system_prompt: str, user_prompt: str, max_tokens: i
                 async for text in stream.text_stream:
                     yield text
         elif provider == "qwen":
-            result = await _call_qwen_json(system_prompt, user_prompt, max_tokens)
-            text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-            yield text
+            # Qwen DashScope uses OpenAI-compatible streaming
+            qwen_model = _env("QWEN_MODEL", "qwen-max")
+            qwen_key = _env("QWEN_API_KEY")
+            qwen_base = _env("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+            payload = {
+                "model": qwen_model,
+                "temperature": 0.7,
+                "max_tokens": max_tokens,
+                "stream": True,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            }
+            headers = {"Authorization": f"Bearer {qwen_key}", "Content-Type": "application/json"}
+            async with httpx.AsyncClient(timeout=120) as client:
+                async with client.stream("POST", f"{qwen_base}/chat/completions", json=payload, headers=headers) as resp:
+                    if resp.status_code >= 400:
+                        detail = ""
+                        try:
+                            err_payload = await resp.json()
+                            detail = str(err_payload)
+                        except Exception:
+                            detail = await resp.aread()
+                        raise RuntimeError(f"Qwen API {resp.status_code}: {detail}")
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data: "):
+                            continue
+                        chunk = line[len("data: "):].strip()
+                        if chunk == "[DONE]":
+                            return
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = data.get("choices") or [{}]
+                        delta = choices[0].get("delta", {}) if choices else {}
+                        text = delta.get("content")
+                        if text:
+                            yield text
+        elif provider == "deepseek":
+            # DeepSeek uses OpenAI-compatible streaming
+            ds_model = _env("DEEPSEEK_MODEL", "deepseek-chat")
+            ds_key = _env("DEEPSEEK_API_KEY")
+            ds_base = _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
+            payload = {
+                "model": ds_model,
+                "temperature": 0.7,
+                "max_tokens": max_tokens,
+                "stream": True,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            }
+            headers = {"Authorization": f"Bearer {ds_key}", "Content-Type": "application/json"}
+            async with httpx.AsyncClient(timeout=120) as client:
+                async with client.stream("POST", f"{ds_base}/chat/completions", json=payload, headers=headers) as resp:
+                    if resp.status_code >= 400:
+                        detail = ""
+                        try:
+                            err_payload = await resp.json()
+                            detail = str(err_payload)
+                        except Exception:
+                            detail = await resp.aread()
+                        raise RuntimeError(f"DeepSeek API {resp.status_code}: {detail}")
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data: "):
+                            continue
+                        chunk = line[len("data: "):].strip()
+                        if chunk == "[DONE]":
+                            return
+                        try:
+                            data = json.loads(chunk)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = data.get("choices") or [{}]
+                        delta = choices[0].get("delta", {}) if choices else {}
+                        text = delta.get("content")
+                        if text:
+                            yield text
         else:
             raise RuntimeError(f"AI 服务配置错误：不支持的 Provider '{provider}'，请检查管理后台配置。")
     except RuntimeError:
