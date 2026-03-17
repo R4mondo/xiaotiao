@@ -1,5 +1,6 @@
-"""主题追踪路由：话题追踪与 ArXiv 论文发现。"""
+"""主题追踪路由：话题追踪与多源论文发现。"""
 
+import json
 import uuid
 from datetime import datetime
 
@@ -12,7 +13,7 @@ from services.tracker_service import (
     list_topics,
     create_topic,
     delete_topic,
-    search_arxiv_for_topic,
+    search_topic_all_sources,
 )
 
 router = APIRouter(prefix="/topics", tags=["主题追踪"])
@@ -56,7 +57,7 @@ def delete_topic_route(topic_id: str, db=Depends(get_db)):
 @router.post(
     "/{topic_id}/check-now",
     summary="立即检查",
-    description="立即触发该主题的论文检索。",
+    description="立即触发该主题的所有来源论文检索。",
 )
 async def check_now(topic_id: str, background_tasks: BackgroundTasks, request: Request, db=Depends(get_db)):
     row = db.execute("SELECT * FROM topics WHERE id=?", (topic_id,)).fetchone()
@@ -64,8 +65,14 @@ async def check_now(topic_id: str, background_tasks: BackgroundTasks, request: R
         raise HTTPException(404, "未找到该主题。")
 
     db_path = request.state.db_path if hasattr(request, "state") else None
-    background_tasks.add_task(search_arxiv_for_topic, topic_id, row["title"], db_path=db_path)
-    return {"status": "checking", "topic_id": topic_id}
+    # Parse sources from topic record
+    try:
+        sources = json.loads(row["sources"] or '["arxiv"]')
+    except (json.JSONDecodeError, TypeError):
+        sources = ["arxiv"]
+
+    background_tasks.add_task(search_topic_all_sources, topic_id, row["title"], sources=sources, db_path=db_path)
+    return {"status": "checking", "topic_id": topic_id, "sources": sources}
 
 
 # ── Discovered Papers ─────────────────────────

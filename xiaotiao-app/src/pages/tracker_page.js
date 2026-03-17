@@ -42,22 +42,22 @@ export function renderTrackerPage() {
             <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
               <input type="checkbox" class="tracker-source-cb" value="ssrn" style="accent-color:#f472b6;">
               <span>SSRN</span>
-              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+              <span style="font-size:0.7rem;color:#4ade80;background:rgba(74,222,128,0.1);padding:1px 6px;border-radius:6px;">现已上线</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
               <input type="checkbox" class="tracker-source-cb" value="cnki" style="accent-color:#f472b6;">
               <span>CNKI (中国知网)</span>
-              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+              <span style="font-size:0.7rem;color:#4ade80;background:rgba(74,222,128,0.1);padding:1px 6px;border-radius:6px;">现已上线</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
               <input type="checkbox" class="tracker-source-cb" value="heinonline" style="accent-color:#f472b6;">
               <span>HeinOnline</span>
-              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+              <span style="font-size:0.7rem;color:#4ade80;background:rgba(74,222,128,0.1);padding:1px 6px;border-radius:6px;">现已上线</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--glass-bg);border-radius:10px;cursor:pointer;font-size:0.85rem;color:var(--text-primary);border:1px solid transparent;transition:border-color 0.2s;" class="source-checkbox-label">
               <input type="checkbox" class="tracker-source-cb" value="google_scholar" style="accent-color:#f472b6;">
               <span>Google Scholar</span>
-              <span style="font-size:0.7rem;color:var(--text-muted);background:rgba(244,114,182,0.1);padding:1px 6px;border-radius:6px;">即将上线</span>
+              <span style="font-size:0.7rem;color:#4ade80;background:rgba(74,222,128,0.1);padding:1px 6px;border-radius:6px;">现已上线</span>
             </label>
           </div>
         </div>
@@ -141,8 +141,7 @@ async function loadTopics() {
       const sources = Array.isArray(t.sources) ? t.sources : ['arxiv'];
       const sourceTags = sources.map(s => {
         const label = SOURCE_LABELS[s] || s;
-        const isComingSoon = COMING_SOON_SOURCES.includes(s);
-        return `<span style="background:rgba(244,114,182,0.08);color:${isComingSoon ? 'var(--text-muted)' : '#f472b6'};padding:2px 8px;border-radius:8px;font-size:0.7rem;">${escapeHtml(label)}${isComingSoon ? ' (即将)' : ''}</span>`;
+        return `<span style="background:rgba(244,114,182,0.08);color:#f472b6;padding:2px 8px;border-radius:8px;font-size:0.7rem;">${escapeHtml(label)}</span>`;
       }).join('');
 
       return `
@@ -230,7 +229,7 @@ const SOURCE_LABELS = {
   google_scholar: 'Google Scholar',
 };
 
-const COMING_SOON_SOURCES = ['ssrn', 'cnki', 'heinonline', 'google_scholar'];
+const COMING_SOON_SOURCES = [];
 
 function getSelectedSources() {
   const checkboxes = document.querySelectorAll('.tracker-source-cb:checked');
@@ -247,17 +246,7 @@ async function addTopic() {
 
   if (sources.length === 0) return window.showToast('请至少选择一个来源', 'warning');
 
-  // Check if any coming-soon sources are selected alongside arxiv
-  const comingSoon = sources.filter(s => COMING_SOON_SOURCES.includes(s));
-  if (comingSoon.length > 0) {
-    const comingSoonLabels = comingSoon.map(s => SOURCE_LABELS[s]).join('、');
-    const hasArxiv = sources.includes('arxiv');
-    if (!hasArxiv) {
-      window.showToast(`${comingSoonLabels} 尚未上线，请至少选择 ArXiv`, 'warning');
-      return;
-    }
-    window.showToast(`${comingSoonLabels} 即将上线，目前仅 ArXiv 生效`, 'info');
-  }
+  // All sources are now active — no coming-soon check needed
 
   const btn = document.getElementById('btn-add-topic');
   btn.disabled = true;
