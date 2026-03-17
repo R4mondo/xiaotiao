@@ -43,6 +43,9 @@ export function renderLoginPage() {
         <div class="auth-card__hint">
           首次使用请先注册账号。登录后可访问论文库、主题探索、翻译工作室等功能。
         </div>
+        <div style="text-align:right;margin-top:12px;">
+          <a href="/admin" target="_blank" style="font-size:0.75rem;color:var(--text-muted,#64748b);opacity:0.6;text-decoration:none;transition:opacity .2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'">🔧 开发者登录</a>
+        </div>
       </div>
     </section>
   `;

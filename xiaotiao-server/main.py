@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from db.auth_db import init_auth_db
 from db.database import init_db, run_migrations, get_user_db_path
 from services.auth_service import extract_token, get_user_from_token
-from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback
+from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback, admin
 
 try:
     from routers import multimodal
@@ -104,7 +104,7 @@ async def auth_guard(request: Request, call_next):
     path = request.url.path
     if request.method == "OPTIONS":
         return await call_next(request)
-    if path in PUBLIC_PATHS or path.startswith("/docs"):
+    if path in PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/admin"):
         return await call_next(request)
     token = extract_token(request)
     user = get_user_from_token(token)
@@ -140,6 +140,7 @@ app.include_router(tracker.router)
 app.include_router(collections.router)
 app.include_router(auth.router)
 app.include_router(feedback.router)
+app.include_router(admin.router)
 if multimodal:
     app.include_router(multimodal.router)
 
