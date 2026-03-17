@@ -759,14 +759,15 @@ def admin_dashboard(request: Request):
 
     # ── Build API provider cards ──
     providers_info = [
-        ("gemini", "Gemini", "gemini-2.5-flash", "GEMINI_API_KEY", True, True, True),
-        ("openai", "OpenAI", "gpt-4o-mini", "OPENAI_API_KEY", True, True, False),
-        ("qwen", "Qwen (通义千问)", "qwen-plus", "QWEN_API_KEY", True, False, True),
-        ("anthropic", "Anthropic", "claude-3-7-sonnet", "ANTHROPIC_API_KEY", True, True, True),
+        ("gemini", "Gemini", "gemini-2.5-flash", "GEMINI_API_KEY", "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta", True, True, True),
+        ("openai", "OpenAI", "gpt-4o-mini", "OPENAI_API_KEY", "OPENAI_BASE_URL", "https://api.openai.com/v1", True, True, False),
+        ("qwen", "Qwen (通义千问)", "qwen-plus", "QWEN_API_KEY", "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1", True, False, True),
+        ("anthropic", "Anthropic", "claude-3-7-sonnet", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "https://api.anthropic.com", True, True, True),
     ]
     api_cards = ""
-    for pid, pname, default_model, key_env, has_json, has_stream, has_vision in providers_info:
+    for pid, pname, default_model, key_env, base_url_env, default_base_url, has_json, has_stream, has_vision in providers_info:
         key_val = os.getenv(key_env, "").strip()
+        base_url_val = os.getenv(base_url_env, "").strip()
         selected = "selected" if provider == pid else ""
         key_display = _mask_key(key_val) if key_val else ""
         key_placeholder = "未配置" if not key_val else ""
@@ -786,6 +787,8 @@ def admin_dashboard(request: Request):
             </div>
             <input class="api-input" type="password" id="key-{pid}" placeholder="API Key {key_placeholder}" value="{html_mod.escape(key_val)}" autocomplete="off">
             <input class="api-input" type="text" id="model-{pid}" placeholder="模型名称" value="{html_mod.escape(model_val)}" autocomplete="off">
+            <input class="api-input" type="text" id="baseurl-{pid}" placeholder="API Base URL（留空=官方默认）" value="{html_mod.escape(base_url_val)}" autocomplete="off" style="font-size:.75rem;color:#94a3b8">
+            <div style="font-size:.65rem;color:#475569;margin-top:2px">默认: {default_base_url}</div>
             {status_html}
         </div>
         """
@@ -909,8 +912,10 @@ def admin_dashboard(request: Request):
         ['gemini', 'openai', 'qwen', 'anthropic'].forEach(p => {{
             const keyEl = document.getElementById('key-' + p);
             const modelEl = document.getElementById('model-' + p);
+            const baseUrlEl = document.getElementById('baseurl-' + p);
             if (keyEl && keyEl.value) config[p + '_key'] = keyEl.value;
             if (modelEl && modelEl.value) config[p + '_model'] = modelEl.value;
+            if (baseUrlEl && baseUrlEl.value.trim()) config[p + '_base_url'] = baseUrlEl.value.trim();
         }});
         config.provider = provider;
 
@@ -1239,6 +1244,9 @@ async def save_config(request: Request):
         model_val = body.get(f"{pid}_model", "").strip()
         if model_val:
             updates[f"{pid.upper()}_MODEL"] = model_val
+        base_url_val = body.get(f"{pid}_base_url", "").strip()
+        if base_url_val:
+            updates[f"{pid.upper()}_BASE_URL"] = base_url_val
 
     # Update or append
     for k, v in updates.items():
