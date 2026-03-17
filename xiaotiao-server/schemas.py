@@ -45,7 +45,7 @@ class TermDef(BaseModel):
 
 class TopicGenerateResponse(BaseModel):
     result_text: str = Field(description="Generated article text in HTML format with <p> tags")
-    translation_text: str = Field(description="Sentence-by-sentence Chinese translation of the article, in HTML format with <p> tags, each paragraph corresponding to the original")
+    translation_text: str = Field(default="", description="Sentence-by-sentence Chinese translation of the article, in HTML format with <p> tags, each paragraph corresponding to the original")
     db_words_used: List[str] = Field(description="List of DB words successfully included in the article")
     new_words: List[NewWord] = Field(description="New domain vocabulary words introduced")
     terms: List[TermDef] = Field(description="Key terms and concepts extracted from the article")
