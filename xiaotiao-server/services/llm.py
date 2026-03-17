@@ -213,6 +213,52 @@ def _clean_json_text(content: str) -> str:
     return text
 
 
+def _robust_json_loads(text: str) -> dict:
+    """Try multiple strategies to parse JSON from LLM output."""
+    cleaned = _clean_json_text(text)
+
+    # Strategy 1: direct parse
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: fix unescaped control characters inside strings
+    import re
+    fixed = cleaned
+    # Replace literal newlines/tabs inside JSON strings with escaped versions
+    fixed = fixed.replace('\r\n', '\\n').replace('\r', '\\n')
+    # Replace unescaped newlines within string values
+    fixed = re.sub(r'(?<=": ")(.*?)(?="[,}\]])', lambda m: m.group(0).replace('\n', '\\n').replace('\t', '\\t'), fixed, flags=re.DOTALL)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 3: try to find the largest valid JSON by trimming from the end
+    for end_pos in range(len(cleaned), max(0, len(cleaned) - 500), -1):
+        candidate = cleaned[:end_pos]
+        # Balance braces
+        open_braces = candidate.count('{') - candidate.count('}')
+        candidate += '}' * open_braces
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+
+    # Strategy 4: remove all control characters and retry
+    fixed = re.sub(r'[\x00-\x1f\x7f]', ' ', cleaned)
+    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError as exc:
+        # Final fallback: raise with context
+        raise json.JSONDecodeError(
+            f"Could not parse LLM response as JSON (tried 4 strategies). First 500 chars: {cleaned[:500]}",
+            cleaned, 0
+        ) from exc
+
+
 def _extract_message_content(raw: Any) -> str:
     if isinstance(raw, str):
         return raw
@@ -371,7 +417,7 @@ async def _call_openai_json(system_prompt: str, user_prompt: str, max_tokens: in
             data = resp.json()
             break
     content = _safe_openai_content(data)
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 async def _call_gemini_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
@@ -415,7 +461,7 @@ async def _call_gemini_json(system_prompt: str, user_prompt: str, max_tokens: in
             data = resp.json()
             break
     text = _extract_gemini_text(data)
-    return json.loads(_clean_json_text(text))
+    return _robust_json_loads(text)
 
 
 async def _call_openai_stream(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> AsyncGenerator[str, None]:
@@ -564,7 +610,7 @@ async def _call_qwen_json(system_prompt: str, user_prompt: str, max_tokens: int 
     }
     response = await asyncio.to_thread(_openai_compatible_call, payload)
     content = _safe_openai_content(response)
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 async def _call_qwen_vision_json(
@@ -593,7 +639,7 @@ async def _call_qwen_vision_json(
     }
     response = await asyncio.to_thread(_openai_compatible_call, payload)
     content = _safe_openai_content(response)
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 async def _call_anthropic_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
@@ -608,7 +654,7 @@ async def _call_anthropic_json(system_prompt: str, user_prompt: str, max_tokens:
         temperature=0.7,
     )
     content = response.content[0].text.strip()
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 async def _call_anthropic_vision_json(
@@ -640,7 +686,7 @@ async def _call_anthropic_vision_json(
         temperature=0.7,
     )
     content = response.content[0].text.strip()
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 async def _call_gemini_vision_json(
@@ -693,7 +739,7 @@ async def _call_gemini_vision_json(
             data = resp.json()
             break
     text = _extract_gemini_text(data)
-    return json.loads(_clean_json_text(text))
+    return _robust_json_loads(text)
 
 
 async def mock_claude_json(system_prompt: str, user_prompt: str) -> dict:
@@ -859,7 +905,7 @@ async def _call_gemini_with_schema(
             data = resp.json()
             break
     text = _extract_gemini_text(data)
-    return json.loads(_clean_json_text(text))
+    return _robust_json_loads(text)
 
 
 async def _call_openai_with_schema(
@@ -933,7 +979,7 @@ async def _call_openai_with_schema(
             data = resp.json()
             break
     content = _safe_openai_content(data)
-    return json.loads(_clean_json_text(content))
+    return _robust_json_loads(content)
 
 
 def _flatten_schema_for_gemini(schema: dict) -> dict:
