@@ -296,10 +296,32 @@ async function showConceptAnalysis() {
 
     await new Promise(r => setTimeout(r, 300));
 
-    const resultText = data.result_text || data.analysis || data.summary || '暂无解析结果';
+    const resultText = data.result_text || data.analysis || data.summary || '';
+    // Build rich content from ArticleAnalyzeResponse fields
+    let contentHtml = '';
+    if (data.paragraphs && data.paragraphs.length > 0) {
+      contentHtml += data.paragraphs.map(p =>
+        `<div style="margin-bottom:12px;">
+          <div style="color:#e2e8f0;font-size:0.95em;line-height:1.6;">${p.original || ''}</div>
+          <div style="color:#94a3b8;font-size:0.88em;margin-top:4px;line-height:1.5;">${p.explanation || ''}</div>
+        </div>`
+      ).join('');
+    }
+    if (data.terms && data.terms.length > 0) {
+      contentHtml += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:0.82em;color:#818cf8;margin-bottom:6px;">📚 相关术语</div>
+        ${data.terms.map(t => `<span style="display:inline-block;background:rgba(99,102,241,0.15);padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:0.85em;color:#a5b4fc;">${t.term || t.word || ''}: ${t.zh || t.definition || ''}</span>`).join('')}
+      </div>`;
+    }
+    if (!contentHtml && resultText) {
+      contentHtml = resultText;
+    }
+    if (!contentHtml) {
+      contentHtml = '暂无解析结果';
+    }
     body.innerHTML = `
       <div class="concept-analysis-panel__word">${word}</div>
-      <div class="concept-analysis-panel__content">${resultText}</div>
+      <div class="concept-analysis-panel__content">${contentHtml}</div>
       <button class="btn btn--secondary btn--sm concept-analysis-panel__add-vocab" type="button">
         + 同时加入生词本
       </button>
