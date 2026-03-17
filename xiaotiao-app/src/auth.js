@@ -1,4 +1,4 @@
-const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
 
 const TOKEN_KEY = 'zaiyi_token';

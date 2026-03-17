@@ -1,0 +1,48 @@
+# ========================================================
+# 小挑后端 — systemd 服务单元
+# ========================================================
+# 使用方法:
+#   1. 修改路径 /home/deploy/xiaotiao-main 为实际项目路径
+#   2. 确保 .env 文件存在于 xiaotiao-server/ 目录下
+#   3. sudo cp xiaotiao-server.service /etc/systemd/system/
+#   4. sudo systemctl daemon-reload
+#   5. sudo systemctl enable --now xiaotiao-server
+# ========================================================
+
+[Unit]
+Description=小挑后端服务 (FastAPI + Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+
+WorkingDirectory=/home/deploy/xiaotiao-main/xiaotiao-server
+EnvironmentFile=/home/deploy/xiaotiao-main/xiaotiao-server/.env
+
+# 使用 uvicorn 生产模式启动
+# 注意：SQLite 不支持多进程并发写入，所以 workers=1
+ExecStart=/home/deploy/xiaotiao-main/xiaotiao-server/.venv/bin/python -m uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 3000 \
+    --workers 1 \
+    --log-level info
+
+# 崩溃自动重启
+Restart=on-failure
+RestartSec=5
+
+# 安全限制
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/deploy/xiaotiao-main/xiaotiao-server/db
+ReadWritePaths=/home/deploy/xiaotiao-main/xiaotiao-server/uploads
+
+# 日志交给 journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xiaotiao-server
+
+[Install]
+WantedBy=multi-user.target

@@ -359,7 +359,7 @@ function stepDate(direction) {
 }
 
 function downloadVocab() {
-    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
     const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const token = getAuthToken();
     if (!token) { showToast('请先登录', 'error'); return; }
@@ -376,7 +376,7 @@ function downloadVocab() {
 // ── API helpers ──────────────────────────
 
 async function getJSON(url) {
-    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
     const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const res = await authFetch(`${API_BASE}${url}`);
     if (!res.ok) throw new Error('Failed to fetch data');
@@ -384,7 +384,7 @@ async function getJSON(url) {
 }
 
 async function postJSON(url, payload) {
-    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
     const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const res = await authFetch(`${API_BASE}${url}`, {
         method: 'POST',
@@ -571,7 +571,7 @@ async function handleFileUpload(e) {
 }
 
 async function uploadFileToServer(file) {
-    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
     const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
     const formData = new FormData();
     formData.append('file', file);
@@ -650,7 +650,7 @@ function escapeHtml(text) {
 window.__deleteVocab = async (id) => {
     const ok = await showGlassConfirm('删除术语', '确定要删除该核心术语吗？这也会删除其复习历史。', { danger: true, confirmText: '删除', cancelText: '取消' });
     if (ok) {
-        const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+        const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
         const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
         try {
             const res = await authFetch(`${API_BASE}/vocab/${id}`, { method: 'DELETE' });

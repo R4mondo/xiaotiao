@@ -626,6 +626,261 @@ async def call_claude_stream(system_prompt: str, user_prompt: str, max_tokens: i
             yield char
             await _asyncio.sleep(0.02)
 
+# ──────────────────────────────────────────────
+#  Schema-aware LLM calls — used by PromptEngine
+# ──────────────────────────────────────────────
+
+
+async def _call_gemini_with_schema(
+    system_prompt: str, user_prompt: str, response_schema: dict, max_tokens: int = 4000
+) -> dict:
+    """Gemini with native responseSchema constraint."""
+    model = _env("GEMINI_MODEL", "gemini-2.5-flash")
+    max_retries = int(_env("GEMINI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("GEMINI_HTTP_TIMEOUT", "120"))
+    combined = f"{system_prompt}\n\n{user_prompt}".strip()
+
+    gen_config = {
+        "maxOutputTokens": max_tokens,
+        "temperature": 0.7,
+        "responseMimeType": "application/json",
+    }
+    # Attach response schema — Gemini uses a subset of JSON Schema.
+    # Strip $defs and flatten references for compatibility.
+    cleaned_schema = _flatten_schema_for_gemini(response_schema)
+    if cleaned_schema:
+        gen_config["responseSchema"] = cleaned_schema
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": combined}]}],
+        "generationConfig": gen_config,
+    }
+    headers = {
+        "x-goog-api-key": _gemini_api_key(),
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(
+                f"{_gemini_base_url()}/models/{model}:generateContent",
+                json=payload,
+                headers=headers,
+            )
+            if resp.status_code >= 400:
+                retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                if retryable and attempt < max_retries:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+                    continue
+                detail = ""
+                try:
+                    err_payload = resp.json()
+                    err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                    detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                except Exception:
+                    detail = resp.text
+                raise RuntimeError(f"Gemini API {resp.status_code}: {detail}")
+            data = resp.json()
+            break
+    text = _extract_gemini_text(data)
+    return json.loads(_clean_json_text(text))
+
+
+async def _call_openai_with_schema(
+    system_prompt: str, user_prompt: str, response_schema: dict, max_tokens: int = 4000
+) -> dict:
+    """OpenAI with Structured Outputs (json_schema response_format)."""
+    model = _env("OPENAI_MODEL", "gpt-4o-mini")
+    max_retries = int(_env("OPENAI_HTTP_RETRIES", "1"))
+    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "120"))
+
+    # OpenAI Structured Outputs requires additionalProperties: false on objects
+    strict_schema = _prepare_openai_strict_schema(response_schema)
+
+    payload = {
+        "model": model,
+        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "api_response",
+                "strict": True,
+                "schema": strict_schema,
+            }
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+                + "\n\nIMPORTANT: Return one raw valid JSON object only. No markdown wrappers.",
+            },
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {_openai_api_key()}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for attempt in range(max_retries + 1):
+            resp = await client.post(
+                f"{_openai_base_url()}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+            if resp.status_code >= 400:
+                retryable = resp.status_code in {408, 409, 429, 500, 502, 503, 504}
+                if retryable and attempt < max_retries:
+                    await asyncio.sleep(0.8 * (attempt + 1))
+                    continue
+                detail = ""
+                try:
+                    err_payload = resp.json()
+                    err_obj = err_payload.get("error") if isinstance(err_payload, dict) else None
+                    detail = err_obj.get("message") if isinstance(err_obj, dict) else str(err_payload)
+                except Exception:
+                    detail = resp.text
+                raise RuntimeError(f"OpenAI API {resp.status_code}: {detail}")
+            data = resp.json()
+            break
+    content = _extract_message_content(data["choices"][0]["message"]["content"])
+    return json.loads(_clean_json_text(content))
+
+
+def _flatten_schema_for_gemini(schema: dict) -> dict:
+    """
+    Flatten a Pydantic-generated JSON Schema for Gemini's responseSchema.
+    Gemini doesn't support $defs or $ref — inline all definitions.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    defs = schema.pop("$defs", {})
+    if not defs:
+        # Remove unsupported keys
+        schema.pop("title", None)
+        schema.pop("description", None)
+        return schema
+
+    def _resolve(node):
+        if not isinstance(node, dict):
+            return node
+        # Resolve $ref
+        if "$ref" in node:
+            ref_path = node["$ref"]  # e.g. "#/$defs/NewWord"
+            ref_name = ref_path.rsplit("/", 1)[-1]
+            if ref_name in defs:
+                resolved = dict(defs[ref_name])
+                resolved.pop("title", None)
+                resolved.pop("description", None)
+                return _resolve(resolved)
+            return node
+
+        # Handle anyOf (Pydantic Optional wrapping)
+        if "anyOf" in node:
+            non_null = [s for s in node["anyOf"] if s.get("type") != "null"]
+            if len(non_null) == 1:
+                resolved = dict(node)
+                del resolved["anyOf"]
+                resolved.update(_resolve(non_null[0]))
+                return resolved
+
+        # Recurse into properties
+        if "properties" in node:
+            for key, val in node["properties"].items():
+                node["properties"][key] = _resolve(val)
+        # Recurse into array items
+        if "items" in node:
+            node["items"] = _resolve(node["items"])
+        node.pop("title", None)
+        node.pop("description", None)
+        return node
+
+    return _resolve(schema)
+
+
+def _prepare_openai_strict_schema(schema: dict) -> dict:
+    """
+    Prepare a Pydantic JSON Schema for OpenAI Structured Outputs strict mode.
+    - Resolves $defs/$ref inline
+    - Adds additionalProperties: false to all objects
+    - Ensures all properties are in required (strict mode requirement)
+    """
+    import copy
+    schema = copy.deepcopy(schema)
+    defs = schema.pop("$defs", {})
+
+    def _resolve(node):
+        if not isinstance(node, dict):
+            return node
+        if "$ref" in node:
+            ref_name = node["$ref"].rsplit("/", 1)[-1]
+            if ref_name in defs:
+                resolved = dict(defs[ref_name])
+                return _resolve(resolved)
+            return node
+
+        # Handle anyOf for Optional
+        if "anyOf" in node:
+            non_null = [s for s in node["anyOf"] if s.get("type") != "null"]
+            if len(non_null) == 1:
+                resolved = dict(node)
+                del resolved["anyOf"]
+                resolved.update(_resolve(non_null[0]))
+                return resolved
+
+        if node.get("type") == "object" and "properties" in node:
+            node["additionalProperties"] = False
+            # Strict mode requires all properties in 'required'
+            if "required" not in node:
+                node["required"] = list(node["properties"].keys())
+            for key, val in node["properties"].items():
+                node["properties"][key] = _resolve(val)
+        if "items" in node:
+            node["items"] = _resolve(node["items"])
+        return node
+
+    resolved = _resolve(schema)
+    resolved.pop("title", None)
+    return resolved
+
+
+async def call_llm_with_schema(
+    system_prompt: str,
+    user_prompt: str,
+    response_schema: dict,
+    max_tokens: int = 4000,
+) -> dict:
+    """
+    Schema-aware LLM call — used by PromptEngine.
+
+    - Gemini: uses native responseSchema for constrained decoding
+    - OpenAI: uses Structured Outputs (json_schema response_format)
+    - Qwen/Anthropic/Mock: falls back to existing JSON mode + _clean_json_text
+    """
+    provider = _llm_provider()
+    try:
+        if provider == "gemini":
+            return await _call_gemini_with_schema(
+                system_prompt, user_prompt, response_schema, max_tokens=max_tokens
+            )
+        if provider == "openai":
+            return await _call_openai_with_schema(
+                system_prompt, user_prompt, response_schema, max_tokens=max_tokens
+            )
+        # Qwen, Anthropic, Mock — use existing JSON mode (no native schema)
+        if provider == "qwen":
+            return await _call_qwen_json(system_prompt, user_prompt, max_tokens=max_tokens)
+        if provider == "anthropic":
+            return await _call_anthropic_json(system_prompt, user_prompt, max_tokens=max_tokens)
+        print("Using LLM JSON MOCK (No provider key)")
+        return await mock_claude_json(system_prompt, user_prompt)
+    except Exception as exc:
+        if _env("LLM_FALLBACK_TO_MOCK", "true").lower() in {"1", "true", "yes"}:
+            print(f"LLM schema call failed ({provider}), fallback to mock: {exc}")
+            return await mock_claude_json(system_prompt, user_prompt)
+        raise RuntimeError(f"Failed to generate valid response from {provider}: {exc}") from exc
+
 
 async def call_claude_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
     provider = _llm_provider()

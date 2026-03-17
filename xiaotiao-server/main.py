@@ -50,15 +50,22 @@ def on_startup():
     init_db()
     run_migrations()
 
-# Configure CORS for local development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# Configure CORS — read allowed origins from env, or default to localhost for dev.
+# Production: set CORS_ORIGINS=* or CORS_ORIGINS=https://yourdomain.com
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = ["*"] if _cors_env == "*" else [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
-    ],
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,17 +1,12 @@
 import os
-import random
 from fastapi import APIRouter, Depends, HTTPException
 from schemas import TopicGenerateRequest, TopicGenerateResponse
-from services.llm import call_claude_json
+from services.prompt_engine import prompt_engine
 from services.srs import SRSEngine
 from db.database import get_db
 
 router = APIRouter(prefix="/topic", tags=["话题生成"])
 
-def load_prompt(filename: str) -> str:
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", filename)
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
 
 @router.post(
     "/generate",
@@ -19,51 +14,42 @@ def load_prompt(filename: str) -> str:
     summary="生成话题文章",
     description="根据指定主题、领域与难度生成学习文章，并返回新词与术语。",
 )
-async def generate_topic(req: TopicGenerateRequest, db = Depends(get_db)):
-    system_prompt = load_prompt("topic_generate.txt")
-
-    # Hook into SRS Engine to get target words dynamically
+async def generate_topic(req: TopicGenerateRequest, db=Depends(get_db)):
+    # SRS 引擎：获取需要复习的目标词汇
     srs = SRSEngine(db)
-    user_db_words = req.db_words
-    
-    if not user_db_words and req.db_word_count > 0:
-        # If frontend didn't pass explicit words, fetch from SRS pipeline
-        srs_words = srs.select_words_for_topic(limit=req.db_word_count)
-        user_db_words = srs_words
-    
-    user_prompt = f"""
-Please generate an article based on the following specs:
-- Topics: {', '.join(req.topics) if req.topics else 'General knowledge'}
-- Domains: {', '.join(req.domains) if req.domains else 'General'}
-- Level: {req.level}
-- Target Length: ~{req.article_length} words
-- Style: {req.article_style_id}
-- Required DB Words (MUST INCLUDE): {', '.join(user_db_words) if user_db_words else 'None'}
-- Number of new words to introduce: {req.new_word_count}
-    """
+    db_words = req.db_words
+    if not db_words and req.db_word_count > 0:
+        db_words = srs.select_words_for_topic(limit=req.db_word_count)
 
+    # 从数据库读取文章风格的 prompt_modifier
+    style_modifier = ""
+    style_row = db.execute(
+        "SELECT prompt_modifier FROM article_styles WHERE id=?",
+        (req.article_style_id,),
+    ).fetchone()
+    if style_row:
+        style_modifier = style_row["prompt_modifier"] or ""
+
+    # 一站式调用：模板渲染 → JSON Schema 约束 → LLM → Pydantic 校验
     try:
-        data = await call_claude_json(system_prompt, user_prompt, max_tokens=int(req.article_length)*3 + 1000)
+        response = await prompt_engine.generate(
+            template_name="topic_generate.j2",
+            response_model=TopicGenerateResponse,
+            max_tokens=int(req.article_length) * 3 + 1000,
+            # 模板变量 — 前端参数直接注入
+            topics=req.topics,
+            domains=req.domains,
+            level=req.level,
+            article_length=req.article_length,
+            style_modifier=style_modifier,
+            db_words=db_words,
+            new_word_count=req.new_word_count,
+        )
     except Exception as e:
-        # Fallback to length heuristics
-        data = await call_claude_json(system_prompt, user_prompt, max_tokens=3000)
+        raise HTTPException(
+            status_code=500, detail=f"LLM 生成失败：{e}"
+        )
 
-    # Normalize model output to TopicGenerateResponse schema.
-    if isinstance(data, dict):
-        data.setdefault("result_text", "")
-        data.setdefault("db_words_used", [])
-        data.setdefault("new_words", [])
-        data.setdefault("terms", [])
-        data.setdefault("notes", [])
-        data.setdefault("confidence_hint", "medium")
-
-    # Simple validation against schema
-    try:
-        response = TopicGenerateResponse(**data)
-        
-        # After successful generation, simulate a review exposure
-        srs.process_article_exposure("article_runtime_id", response.db_words_used)
-        
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM 返回数据格式错误：{e}。原始数据：{data}")
+    # SRS 更新：记录词汇曝光
+    srs.process_article_exposure("article_runtime_id", response.db_words_used)
+    return response
