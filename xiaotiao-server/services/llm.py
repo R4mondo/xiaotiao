@@ -332,8 +332,8 @@ def _extract_gemini_text(payload: dict) -> str:
 
 async def _call_openai_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
     model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    max_retries = int(_env("OPENAI_HTTP_RETRIES", "1"))
-    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "120"))
+    max_retries = int(_env("OPENAI_HTTP_RETRIES", "2"))
+    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "180"))
     payload = {
         "model": model,
         "temperature": 0.7,
@@ -864,31 +864,43 @@ async def _call_gemini_with_schema(
 async def _call_openai_with_schema(
     system_prompt: str, user_prompt: str, response_schema: dict, max_tokens: int = 4000
 ) -> dict:
-    """OpenAI with Structured Outputs (json_schema response_format)."""
+    """OpenAI with Structured Outputs or simple JSON mode for proxies."""
     model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    max_retries = int(_env("OPENAI_HTTP_RETRIES", "1"))
-    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "120"))
+    max_retries = int(_env("OPENAI_HTTP_RETRIES", "2"))
+    timeout_seconds = int(_env("OPENAI_HTTP_TIMEOUT", "180"))
 
-    # OpenAI Structured Outputs requires additionalProperties: false on objects
-    strict_schema = _prepare_openai_strict_schema(response_schema)
+    # Detect if using a third-party proxy (custom base URL)
+    custom_base = _env("OPENAI_BASE_URL", "").strip()
+    is_official = not custom_base or "api.openai.com" in custom_base
 
-    payload = {
-        "model": model,
-        "temperature": 0.7,
-        "max_tokens": max_tokens,
-        "response_format": {
+    if is_official:
+        # Official OpenAI: use Structured Outputs (json_schema)
+        strict_schema = _prepare_openai_strict_schema(response_schema)
+        response_format = {
             "type": "json_schema",
             "json_schema": {
                 "name": "api_response",
                 "strict": True,
                 "schema": strict_schema,
             }
-        },
+        }
+        schema_instruction = ""
+    else:
+        # Third-party proxy: use simple json_object mode + inject schema in prompt
+        response_format = {"type": "json_object"}
+        schema_instruction = f"\n\nYou MUST respond with a JSON object following this schema:\n{json.dumps(response_schema, ensure_ascii=False, indent=2)}"
+
+    payload = {
+        "model": model,
+        "temperature": 0.7,
+        "max_tokens": max_tokens,
+        "response_format": response_format,
         "messages": [
             {
                 "role": "system",
                 "content": system_prompt
-                + "\n\nIMPORTANT: Return one raw valid JSON object only. No markdown wrappers.",
+                + "\n\nIMPORTANT: Return one raw valid JSON object only. No markdown wrappers."
+                + schema_instruction,
             },
             {"role": "user", "content": user_prompt},
         ],
