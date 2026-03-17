@@ -277,11 +277,8 @@ async function showConceptAnalysis() {
   }, 200);
 
   try {
-    const data = await fetchAPI('/article/analyze', {
-      source_text: word,
-      analysis_mode: 'concept',
-      grounded: false,
-      top_k: 1
+    const data = await fetchAPI('/vocab/concept', {
+      word: word
     }, {
       timeoutMs: 30000,
       retries: 1,
@@ -296,28 +293,43 @@ async function showConceptAnalysis() {
 
     await new Promise(r => setTimeout(r, 300));
 
-    const resultText = data.result_text || data.analysis || data.summary || '';
-    // Build rich content from ArticleAnalyzeResponse fields
+    // Build rich content from /vocab/concept response
     let contentHtml = '';
-    if (data.paragraphs && data.paragraphs.length > 0) {
-      contentHtml += data.paragraphs.map(p =>
-        `<div style="margin-bottom:12px;">
-          <div style="color:#e2e8f0;font-size:0.95em;line-height:1.6;">${p.original || ''}</div>
-          <div style="color:#94a3b8;font-size:0.88em;margin-top:4px;line-height:1.5;">${p.explanation || ''}</div>
-        </div>`
-      ).join('');
+    if (data.definition_zh || data.definition_en) {
+      contentHtml += `<div style="margin-bottom:10px;">`;
+      if (data.phonetic) contentHtml += `<span style="color:#94a3b8;font-size:0.85em;margin-right:8px;">${data.phonetic}</span>`;
+      if (data.part_of_speech) contentHtml += `<span style="color:#818cf8;font-size:0.82em;">${data.part_of_speech}</span>`;
+      contentHtml += `</div>`;
+      if (data.definition_zh) contentHtml += `<div style="color:#e2e8f0;font-size:0.95em;margin-bottom:6px;">📖 ${data.definition_zh}</div>`;
+      if (data.definition_en) contentHtml += `<div style="color:#94a3b8;font-size:0.88em;margin-bottom:8px;font-style:italic;">${data.definition_en}</div>`;
     }
-    if (data.terms && data.terms.length > 0) {
-      contentHtml += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
-        <div style="font-size:0.82em;color:#818cf8;margin-bottom:6px;">📚 相关术语</div>
-        ${data.terms.map(t => `<span style="display:inline-block;background:rgba(99,102,241,0.15);padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:0.85em;color:#a5b4fc;">${t.term || t.word || ''}: ${t.zh || t.definition || ''}</span>`).join('')}
+    if (data.explanation) {
+      contentHtml += `<div style="color:#cbd5e1;font-size:0.9em;line-height:1.6;margin-bottom:10px;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;">${data.explanation}</div>`;
+    }
+    if (data.examples && data.examples.length > 0) {
+      contentHtml += `<div style="margin-bottom:8px;"><div style="font-size:0.82em;color:#818cf8;margin-bottom:4px;">📝 例句</div>`;
+      data.examples.forEach(ex => {
+        contentHtml += `<div style="margin-bottom:6px;padding-left:8px;border-left:2px solid rgba(99,102,241,0.3);">
+          <div style="color:#e2e8f0;font-size:0.88em;">${ex.en || ''}</div>
+          <div style="color:#94a3b8;font-size:0.82em;">${ex.zh || ''}</div>
+        </div>`;
+      });
+      contentHtml += `</div>`;
+    }
+    if (data.related_terms && data.related_terms.length > 0) {
+      contentHtml += `<div style="padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:0.82em;color:#818cf8;margin-bottom:4px;">🔗 相关词汇</div>
+        ${data.related_terms.map(t => `<span style="display:inline-block;background:rgba(99,102,241,0.12);padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0;font-size:0.82em;color:#a5b4fc;">${t.term}: ${t.zh || ''}</span>`).join('')}
       </div>`;
     }
-    if (!contentHtml && resultText) {
-      contentHtml = resultText;
-    }
+    // Fallback for old-format responses
     if (!contentHtml) {
-      contentHtml = '暂无解析结果';
+      const resultText = data.result_text || data.analysis || data.summary || '';
+      if (data.paragraphs && data.paragraphs.length > 0) {
+        contentHtml = data.paragraphs.map(p => `<div style="margin-bottom:8px;"><div style="color:#e2e8f0;">${p.original || ''}</div><div style="color:#94a3b8;font-size:0.88em;">${p.explanation || ''}</div></div>`).join('');
+      } else {
+        contentHtml = resultText || '暂无解析结果';
+      }
     }
     body.innerHTML = `
       <div class="concept-analysis-panel__word">${word}</div>

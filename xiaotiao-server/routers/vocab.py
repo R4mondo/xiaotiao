@@ -301,6 +301,60 @@ def delete_vocab(vocab_id: str, db = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
+
+CONCEPT_ANALYSIS_PROMPT = """You are a bilingual English-Chinese vocabulary expert. Given an English word or short phrase, provide a clear, educational analysis.
+
+Return a JSON object with this structure:
+{
+  "word": "the word",
+  "phonetic": "phonetic transcription",
+  "part_of_speech": "n./v./adj./adv./phrase",
+  "definition_en": "English definition",
+  "definition_zh": "中文释义",
+  "explanation": "Detailed Chinese explanation of the concept, including usage context and nuances (2-3 sentences)",
+  "examples": [
+    {"en": "Example sentence in English", "zh": "例句中文翻译"}
+  ],
+  "related_terms": [
+    {"term": "related word", "zh": "释义"}
+  ]
+}
+
+Rules:
+- Keep definitions concise but informative
+- Provide 2-3 example sentences
+- Provide 2-4 related terms
+- Explanation should be in Chinese, detailed and educational
+- Return ONLY the JSON object, no markdown wrappers
+"""
+
+
+@router.post(
+    "/concept",
+    summary="概念解析",
+    description="对单个英文词汇或短语进行语义解析，返回释义、例句和关联词汇。",
+)
+async def concept_analysis(req: dict):
+    """Analyze a single English word/phrase and return educational content."""
+    word = req.get("word", "").strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="请提供要解析的词汇。")
+    if len(word) > 100:
+        raise HTTPException(status_code=400, detail="词汇过长。")
+
+    try:
+        data = await call_claude_json(
+            CONCEPT_ANALYSIS_PROMPT,
+            f"Please analyze this English word/phrase: {word}",
+            max_tokens=2000,
+            feature_id="concept_analysis",
+        )
+        return data
+    except Exception as e:
+        import logging
+        logging.getLogger("xiaotiao").error("Concept analysis error: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI 解析失败：{str(e)}")
+
 @router.post(
     "/import-file",
     summary="导入词汇文件",
