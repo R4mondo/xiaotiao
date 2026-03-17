@@ -522,7 +522,11 @@ async def _call_gemini_stream(system_prompt: str, user_prompt: str, max_tokens: 
 
 
 anthropic_key = _env("ANTHROPIC_API_KEY")
-anthropic_client = AsyncAnthropic() if (anthropic_key and AsyncAnthropic) else None
+try:
+    anthropic_client = AsyncAnthropic() if (anthropic_key and AsyncAnthropic) else None
+except TypeError:
+    # httpx/anthropic version mismatch (proxies kwarg removed in newer httpx)
+    anthropic_client = None
 
 
 async def _call_qwen_json(system_prompt: str, user_prompt: str, max_tokens: int = 4000) -> dict:
