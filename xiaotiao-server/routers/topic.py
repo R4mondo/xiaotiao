@@ -46,8 +46,10 @@ async def generate_topic(req: TopicGenerateRequest, db=Depends(get_db)):
             new_word_count=req.new_word_count,
         )
     except Exception as e:
+        import logging
+        logging.getLogger("xiaotiao").error("Topic generate error: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"LLM 生成失败：{e}"
+            status_code=500, detail="AI 生成失败，请稍后重试。"
         )
 
     # SRS 更新：记录词汇曝光

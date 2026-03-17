@@ -79,15 +79,7 @@ def run_migrations(db_path: str = None):
     conn.close()
 
 
-def _extract_token(request: Request) -> str:
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.lower().startswith("bearer "):
-        return auth_header.split(" ", 1)[1].strip()
-    xauth = request.headers.get("X-Auth-Token", "").strip()
-    if xauth:
-        return xauth
-    # Fallback: query param token (for file download links)
-    return request.query_params.get("token", "").strip()
+from services.auth_service import extract_token as _extract_token
 
 
 def get_db(request: Request):

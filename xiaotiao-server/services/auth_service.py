@@ -52,6 +52,10 @@ def verify_password(password: str, stored: str) -> bool:
 def register_user(username: str, password: str) -> Dict:
     if not username or not password:
         raise HTTPException(status_code=422, detail="用户名与密码不能为空。")
+    if len(password) < 6:
+        raise HTTPException(status_code=422, detail="密码长度至少为 6 位。")
+    if len(username) < 2 or len(username) > 30:
+        raise HTTPException(status_code=422, detail="用户名长度应在 2-30 个字符之间。")
     existing = get_user_by_username(username)
     if existing:
         raise HTTPException(status_code=409, detail="用户名已存在，请更换。")

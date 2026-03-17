@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from db.auth_db import init_auth_db
 from db.database import init_db, run_migrations, get_user_db_path
 from services.auth_service import extract_token, get_user_from_token
-from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections
+from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback
 
 try:
     from routers import multimodal
@@ -49,6 +49,24 @@ def on_startup():
     init_auth_db()
     init_db()
     run_migrations()
+
+    # D-8: 环境变量完整性检查
+    import logging
+    logger = logging.getLogger("xiaotiao")
+    provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    key_map = {
+        "gemini": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "qwen": "QWEN_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }
+    if not provider:
+        logger.warning("⚠️  LLM_PROVIDER 未设置，将自动检测或使用 mock 模式")
+    elif provider in key_map:
+        if not os.environ.get(key_map[provider], "").strip():
+            logger.warning(f"⚠️  LLM_PROVIDER={provider} 但 {key_map[provider]} 未配置，LLM 调用将失败")
+    elif provider != "mock":
+        logger.warning(f"⚠️  未知 LLM_PROVIDER: {provider}")
 
 # Configure CORS — read allowed origins from env, or default to localhost for dev.
 # Production: set CORS_ORIGINS=* or CORS_ORIGINS=https://yourdomain.com
@@ -102,7 +120,15 @@ async def auth_guard(request: Request, call_next):
     description="用于探活与负载均衡的基础健康检查接口。",
 )
 def health_check():
-    return {"status": "正常", "db": "已连接"}  # We will update db status once connected
+    import sqlite3
+    db_status = "已连接"
+    try:
+        conn = sqlite3.connect(os.getenv("DB_PATH", "./db/xiaotiao.db"))
+        conn.execute("SELECT 1")
+        conn.close()
+    except Exception:
+        db_status = "连接异常"
+    return {"status": "正常", "db": db_status}
 
 app.include_router(topic.router)
 app.include_router(article.router)
@@ -113,6 +139,7 @@ app.include_router(papers.router)
 app.include_router(tracker.router)
 app.include_router(collections.router)
 app.include_router(auth.router)
+app.include_router(feedback.router)
 if multimodal:
     app.include_router(multimodal.router)
 

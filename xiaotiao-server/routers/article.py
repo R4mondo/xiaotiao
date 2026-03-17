@@ -48,8 +48,10 @@ async def analyze_article(req: ArticleAnalyzeRequest):
             grounded_context=grounded_context,
         )
     except Exception as e:
+        import logging
+        logging.getLogger("xiaotiao").error("Article analyze error: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"LLM 解读失败：{e}"
+            status_code=500, detail="AI 解读失败，请稍后重试。"
         )
 
     # 如果使用了 Grounded 模式，追加引用到 key_sentences

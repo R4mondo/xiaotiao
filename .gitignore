@@ -25,3 +25,6 @@ xiaotiao-server/uploads/papers/*.pdf
 .claude/
 暂不需要使用的文件/
 *.pages
+xiaotiao-server/db/users/
+xiaotiao-server/uploads/
+test_*.docx

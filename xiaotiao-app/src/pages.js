@@ -3,8 +3,16 @@ import {
   analyzeArticle,
   createVocabItem,
   generateTopic,
-  runTranslation
+  runTranslation,
+  fetchAPI
 } from './api.js';
+import { escapeHtml, sanitizeHtml } from './utils/sanitize.js';
+
+// Confidence hint Chinese labels
+const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' };
+function confidenceLabel(hint) {
+  return `可信度: ${CONFIDENCE_LABELS[hint] || hint}`;
+}
 import { startSimulatedProgress } from './utils/stream.js';
 
 // ============ Shared Layout — Liquid Glass ============
@@ -524,8 +532,29 @@ export function initTopicExplorer() {
       const data = await generateTopic(payload);
       progress.complete();
 
-      document.getElementById('topic-confidence').textContent = `可信度: ${data.confidence_hint}`;
+      document.getElementById('topic-confidence').textContent = confidenceLabel(data.confidence_hint);
       minimizeConfig();
+
+      // Build new words section if available
+      const newWordsHtml = (data.new_words && data.new_words.length) ? `
+          <div class="gen-article__section">
+            <div class="gen-article__section-title" style="display:flex;align-items:center;justify-content:space-between;">
+              <span>🆕 新词 (${data.new_words.length})</span>
+              <button class="btn btn--sm btn--ghost" id="btn-batch-add-vocab">📥 批量加入生词本</button>
+            </div>
+            <div class="terms-grid">
+              ${data.new_words.map(w => `
+                <div class="term-card" data-word="${escapeHtml(w.word)}" data-def="${escapeHtml(w.definition_zh)}" data-sentence="${escapeHtml(w.in_sentence)}" onclick="this.classList.toggle('expanded')">
+                  <div class="term-card__en">${escapeHtml(w.word)}</div>
+                  <div class="term-card__zh">${escapeHtml(w.definition_zh)}</div>
+                  <div class="term-card__example">
+                    <strong>Example:</strong> ${escapeHtml(w.in_sentence)}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+      ` : '';
 
       resultArea.innerHTML = `
         <div class="gen-article">
@@ -534,7 +563,7 @@ export function initTopicExplorer() {
           </div>
           <div class="gen-article__section">
             <div class="gen-article__section-title">📄 英文学习文章</div>
-            <div class="gen-article__text">${data.result_text}</div>
+            <div class="gen-article__text">${sanitizeHtml(data.result_text)}</div>
           </div>
 
           <div class="gen-article__section">
@@ -542,19 +571,21 @@ export function initTopicExplorer() {
             <div class="terms-grid">
               ${data.terms.map(t => `
                 <div class="term-card" onclick="this.classList.toggle('expanded')">
-                  <div class="term-card__en">${t.term}</div>
-                  <div class="term-card__zh">${t.zh}</div>
+                  <div class="term-card__en">${escapeHtml(t.term)}</div>
+                  <div class="term-card__zh">${escapeHtml(t.zh)}</div>
                   <div class="term-card__example">
-                    <strong>Example:</strong> ${t.example}
+                    <strong>Example:</strong> ${escapeHtml(t.example)}
                   </div>
                 </div>
               `).join('')}
             </div>
           </div>
 
+          ${newWordsHtml}
+
           <div class="notes-section">
             <div class="notes-section__title">💡 核心概念说明</div>
-            ${data.notes.map(n => `<div class="notes-section__item">${n}</div>`).join('')}
+            ${data.notes.map(n => `<div class="notes-section__item">${escapeHtml(n)}</div>`).join('')}
           </div>
 
           <div class="feedback">
@@ -577,6 +608,32 @@ export function initTopicExplorer() {
       `;
       const regenBtn = document.getElementById('btn-topic-regenerate');
       if (regenBtn) regenBtn.addEventListener('click', () => runTopicGeneration(lastTopicPayload, lastTopicLabel));
+
+      // Batch add new words to vocabulary
+      const batchBtn = document.getElementById('btn-batch-add-vocab');
+      if (batchBtn) {
+        batchBtn.addEventListener('click', async () => {
+          const cards = resultArea.querySelectorAll('.term-card[data-word]');
+          if (!cards.length) { showToast('没有可添加的新词', 'warning'); return; }
+          batchBtn.disabled = true;
+          batchBtn.textContent = '添加中...';
+          let added = 0;
+          for (const card of cards) {
+            try {
+              await createVocabItem({
+                word: card.dataset.word,
+                definition_zh: card.dataset.def,
+                example_sentence: card.dataset.sentence,
+                domain: 'topic_generation',
+                source: 'topic_explorer'
+              });
+              added++;
+            } catch (_e) { /* skip duplicates */ }
+          }
+          batchBtn.textContent = `✓ 已添加 ${added} 词`;
+          showToast(`已将 ${added} 个新词加入生词本`, 'success');
+        });
+      }
     } catch (err) {
       progress.stop();
       resultArea.innerHTML = `
@@ -888,9 +945,9 @@ export function initArticleLab() {
             ${data.paragraphs.map((p, i) => `
               <div class="analysis-paragraph">
                 <div class="analysis-paragraph__label analysis-paragraph__label--original">段落 ${i + 1} · 原文</div>
-                <div class="analysis-paragraph__original">${p.original}</div>
+                <div class="analysis-paragraph__original">${escapeHtml(p.original)}</div>
                 <div class="analysis-paragraph__label analysis-paragraph__label--explain">中文解读</div>
-                <div class="analysis-paragraph__explanation">${p.explanation}</div>
+                <div class="analysis-paragraph__explanation">${escapeHtml(p.explanation)}</div>
                 <div style="text-align: right; margin-top: 10px;">
                   <button class="btn btn--sm btn--ghost" onclick="window.retryParagraph(this)">
                     🔄 重新解读此段
@@ -905,8 +962,8 @@ export function initArticleLab() {
             <div class="terms-grid">
               ${data.terms.map(t => `
                 <div class="term-card">
-                  <div class="term-card__en">${t.term}</div>
-                  <div class="term-card__zh">${t.definition_zh}</div>
+                  <div class="term-card__en">${escapeHtml(t.term)}</div>
+                  <div class="term-card__zh">${escapeHtml(t.definition_zh)}</div>
                 </div>
               `).join('')}
             </div>
@@ -918,8 +975,8 @@ export function initArticleLab() {
               <div class="key-sentences">
                 ${data.key_sentences.map(s => `
                   <div class="key-sentence">
-                    <div class="key-sentence__text">"${s.text}"</div>
-                    <div class="key-sentence__reason">${s.reason}</div>
+                    <div class="key-sentence__text">"${escapeHtml(s.text)}"</div>
+                    <div class="key-sentence__reason">${escapeHtml(s.reason)}</div>
                   </div>
                 `).join('')}
               </div>
@@ -1185,8 +1242,11 @@ export function initTranslationStudio() {
       const data = await runTranslation(payload);
       transProgress.complete();
 
-      document.getElementById('trans-confidence').textContent =
-        `可信度: ${data.confidence_hint}`;
+      document.getElementById('trans-confidence').textContent = confidenceLabel(data.confidence_hint);
+
+      // Store variant texts for safe copy via data attributes
+      const variantsCopyData = data.variants.map(v => v.text);
+      window.__translationVariants = variantsCopyData;
 
       resultArea.innerHTML = `
         <div class="translation-result">
@@ -1197,24 +1257,24 @@ export function initTranslationStudio() {
             <div class="gen-article__section" style="margin-bottom: 24px; background: rgba(52, 199, 89, 0.05); padding: 18px; border-radius: 12px; border: 1px solid rgba(52, 199, 89, 0.2);">
               <div class="gen-article__section-title" style="color: var(--translation); margin-bottom: 12px;">🤖 译文对照点评</div>
               <div style="margin-bottom: 12px; font-size: 14px;">
-                <strong>评分：</strong> <span style="color: var(--translation); font-weight: bold;">${data.critique.score}</span><br>
-                <div style="margin-top: 6px; color: var(--text-base);">${data.critique.feedback}</div>
+                <strong>评分：</strong> <span style="color: var(--translation); font-weight: bold;">${escapeHtml(data.critique.score)}</span><br>
+                <div style="margin-top: 6px; color: var(--text-base);">${escapeHtml(data.critique.feedback)}</div>
               </div>
               ${data.critique.improvements.map(imp => `
                 <div style="font-size: 13px; margin-bottom: 10px; padding-left: 12px; border-left: 2px solid var(--translation);">
-                  <div style="text-decoration: line-through; color: var(--text-muted); margin-bottom: 2px;">${imp.original}</div>
-                  <div style="color: var(--text-base);">👉 ${imp.suggested} <br><span style="color: var(--text-muted); font-size: 12px;">💡 ${imp.reason}</span></div>
+                  <div style="text-decoration: line-through; color: var(--text-muted); margin-bottom: 2px;">${escapeHtml(imp.original)}</div>
+                  <div style="color: var(--text-base);">👉 ${escapeHtml(imp.suggested)} <br><span style="color: var(--text-muted); font-size: 12px;">💡 ${escapeHtml(imp.reason)}</span></div>
                 </div>
               `).join('')}
             </div>
           ` : ''}
-          ${data.variants.map(v => `
-            <div class="translation-variant translation-variant--${v.style}">
+          ${data.variants.map((v, idx) => `
+            <div class="translation-variant translation-variant--${escapeHtml(v.style)}">
               <div class="translation-variant__label">
-                ${v.style === 'literal' ? '📋' : v.style === 'legal' ? '⚖️' : '💬'} ${v.label}
+                ${v.style === 'literal' ? '📋' : v.style === 'legal' ? '⚖️' : '💬'} ${escapeHtml(v.label)}
               </div>
-              <div class="translation-variant__text">${v.text}</div>
-              <button class="translation-variant__copy" onclick="copyText(\`${v.text.replace(/`/g, '\\`')}\`, this)">复制</button>
+              <div class="translation-variant__text">${escapeHtml(v.text)}</div>
+              <button class="translation-variant__copy" data-variant-idx="${idx}">复制</button>
               <div style="clear:both"></div>
             </div>
           `).join('')}
@@ -1224,8 +1284,8 @@ export function initTranslationStudio() {
             <div class="terms-grid">
               ${data.terms.map(t => `
                 <div class="term-card">
-                  <div class="term-card__en">${t.term}</div>
-                  <div class="term-card__zh">${t.definition_zh}</div>
+                  <div class="term-card__en">${escapeHtml(t.term)}</div>
+                  <div class="term-card__zh">${escapeHtml(t.definition_zh)}</div>
                 </div>
               `).join('')}
             </div>
@@ -1233,13 +1293,13 @@ export function initTranslationStudio() {
 
           <div class="notes-section">
             <div class="notes-section__title">💡 表达建议</div>
-            ${data.notes.map(n => `<div class="notes-section__item">${n}</div>`).join('')}
+            ${data.notes.map(n => `<div class="notes-section__item">${escapeHtml(n)}</div>`).join('')}
           </div>
 
           ${data.common_errors && data.common_errors.length ? `
             <div class="notes-section" style="margin-top:12px;">
               <div class="notes-section__title">⚠️ 常见错误提示</div>
-              ${data.common_errors.map(n => `<div class="notes-section__item">${n}</div>`).join('')}
+              ${data.common_errors.map(n => `<div class="notes-section__item">${escapeHtml(n)}</div>`).join('')}
             </div>
           ` : ''}
 
@@ -1252,6 +1312,15 @@ export function initTranslationStudio() {
           </div>
         </div>
       `;
+
+      // Bind copy buttons via data attributes (avoids XSS from inline template literals)
+      resultArea.querySelectorAll('.translation-variant__copy[data-variant-idx]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.variantIdx, 10);
+          const text = (window.__translationVariants || [])[idx] || '';
+          copyText(text, btn);
+        });
+      });
       const regenBtn = document.getElementById('btn-translation-regenerate');
       if (regenBtn) regenBtn.addEventListener('click', () => runTranslationRequest(lastTranslationPayload));
     } catch (err) {
@@ -1449,11 +1518,20 @@ export function initResearchPage() {
   loadBaseData();
 }
 
-// Global Analytics Hook
-window.submitFeedback = function(btn, moduleName, selection) {
+// Global Analytics Hook — submits feedback to backend
+window.submitFeedback = async function(btn, moduleName, selection) {
   const container = btn.closest('.feedback__btns');
   container.querySelectorAll('.feedback__btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
-  // Log the PRD tracking event to console
-  console.log(`[Analytics] Event: feedback_submit, Module: ${moduleName}, Selection: ${selection}, Timestamp: ${new Date().toISOString()}`);
+  const payload = {
+    module: moduleName,
+    selection: selection,
+    timestamp: new Date().toISOString()
+  };
+  console.log(`[Analytics] Event: feedback_submit`, payload);
+  try {
+    await fetchAPI('/feedback', payload, { retries: 0, timeoutMs: 5000 });
+  } catch (_e) {
+    // Feedback submission is non-critical, silently ignore failures
+  }
 };

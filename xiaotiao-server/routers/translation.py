@@ -13,7 +13,7 @@ router = APIRouter(prefix="/translation", tags=["翻译"])
     description="对输入文本进行多风格翻译，支持直译、法律表达、简明表达。",
 )
 async def run_translation(req: TranslationRequest):
-    if len(req.source_text) > 6000:
+    if len(req.source_text) > 5000:
         raise HTTPException(status_code=422, detail="文本超过 5000 字符限制。")
 
     try:
@@ -27,8 +27,10 @@ async def run_translation(req: TranslationRequest):
             user_translation=req.user_translation or "",
         )
     except Exception as e:
+        import logging
+        logging.getLogger("xiaotiao").error("Translation error: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"LLM 翻译失败：{e}"
+            status_code=500, detail="AI 翻译失败，请稍后重试。"
         )
 
     return response
