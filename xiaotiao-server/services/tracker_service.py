@@ -137,7 +137,7 @@ def _save_paper(conn, topic_id, entry_title, entry_url, brief, sub_folder_id, so
     tp_id = str(uuid.uuid4())
     conn.execute(
         """INSERT INTO topic_papers (id, topic_id, title, url, brief, status, discovered_at)
-           VALUES (?, ?, ?, ?, ?, 'done', ?)""",
+           VALUES (?, ?, ?, ?, ?, 'pending', ?)""",
         (tp_id, topic_id, entry_title, entry_url, brief, now),
     )
 
@@ -157,7 +157,7 @@ def _save_paper(conn, topic_id, entry_title, entry_url, brief, sub_folder_id, so
 # ═══════════════════════════════════════════
 #  ArXiv Search (XML API — reliable)
 # ═══════════════════════════════════════════
-async def search_arxiv_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_arxiv_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search ArXiv for papers related to a topic."""
     import httpx
     import sqlite3
@@ -215,7 +215,7 @@ async def search_arxiv_for_topic(topic_id: str, title: str, max_results: int = 5
 # ═══════════════════════════════════════════
 #  OpenAlex Search (free REST API — very reliable)
 # ═══════════════════════════════════════════
-async def search_openalex_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_openalex_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search OpenAlex for papers. Free, no auth, global access, 200M+ works."""
     import httpx
     import sqlite3
@@ -286,7 +286,7 @@ async def search_openalex_for_topic(topic_id: str, title: str, max_results: int 
 # ═══════════════════════════════════════════
 #  Semantic Scholar Search (free API — AI-powered)
 # ═══════════════════════════════════════════
-async def search_semantic_scholar_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_semantic_scholar_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search Semantic Scholar. Free API, AI-powered relevance ranking."""
     import httpx
     import sqlite3
@@ -342,7 +342,7 @@ async def search_semantic_scholar_for_topic(topic_id: str, title: str, max_resul
 # ═══════════════════════════════════════════
 #  CrossRef Search (DOI registry — formal publications)
 # ═══════════════════════════════════════════
-async def search_crossref_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_crossref_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search CrossRef for formally published papers with DOIs."""
     import httpx
     import sqlite3
@@ -406,7 +406,7 @@ async def search_crossref_for_topic(topic_id: str, title: str, max_results: int 
 # ═══════════════════════════════════════════
 #  DOAJ Search (Directory of Open Access Journals)
 # ═══════════════════════════════════════════
-async def search_doaj_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_doaj_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search DOAJ for open access journal articles (includes legal journals)."""
     import httpx
     import sqlite3
@@ -468,7 +468,7 @@ async def search_doaj_for_topic(topic_id: str, title: str, max_results: int = 5,
 # ═══════════════════════════════════════════
 #  CORE Search (Open Access aggregator)
 # ═══════════════════════════════════════════
-async def search_core_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_core_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search CORE for open access research papers."""
     import httpx
     import sqlite3
@@ -524,7 +524,7 @@ async def search_core_for_topic(topic_id: str, title: str, max_results: int = 5,
 # ═══════════════════════════════════════════
 #  CNKI Search (中国知网 — via public search)
 # ═══════════════════════════════════════════
-async def search_cnki_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_cnki_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search CNKI for Chinese academic papers."""
     import httpx
     import sqlite3
@@ -591,7 +591,7 @@ def _parse_cnki_html(html_text):
 # ═══════════════════════════════════════════
 #  SSRN Search (Social Science Research Network)
 # ═══════════════════════════════════════════
-async def search_ssrn_for_topic(topic_id: str, title: str, max_results: int = 5, db_path: str = None):
+async def search_ssrn_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
     """Search SSRN for social science and legal papers."""
     import httpx
     import sqlite3
@@ -675,15 +675,48 @@ SOURCE_SEARCH_MAP = {
 
 
 async def search_topic_all_sources(topic_id: str, title: str, sources: List[str] = None, db_path: str = None):
-    """Search all selected sources for a topic in parallel."""
+    """Search all selected sources for a topic, tracking progress."""
     if not sources:
         sources = ["arxiv"]
 
-    tasks = []
+    import sqlite3
+    target_db = db_path or os.getenv("DB_PATH", "./db/xiaotiao.db")
+
+    # Initialize progress tracking
+    conn = sqlite3.connect(target_db)
+    conn.execute("CREATE TABLE IF NOT EXISTS search_progress (topic_id TEXT PRIMARY KEY, total INTEGER, completed INTEGER, current_source TEXT, status TEXT, updated_at TEXT)")
+    now = datetime.utcnow().isoformat()
+    conn.execute("INSERT OR REPLACE INTO search_progress (topic_id, total, completed, current_source, status, updated_at) VALUES (?,?,?,?,?,?)",
+                 (topic_id, len(sources), 0, sources[0] if sources else '', 'searching', now))
+    conn.commit()
+    conn.close()
+
+    completed = 0
     for source in sources:
         fn = SOURCE_SEARCH_MAP.get(source)
         if fn:
-            tasks.append(fn(topic_id, title, db_path=db_path))
+            # Update current source
+            conn = sqlite3.connect(target_db)
+            conn.execute("UPDATE search_progress SET current_source=?, updated_at=? WHERE topic_id=?",
+                         (source, datetime.utcnow().isoformat(), topic_id))
+            conn.commit()
+            conn.close()
 
-    if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                await fn(topic_id, title, db_path=db_path)
+            except Exception as e:
+                print(f"[tracker] Source {source} failed: {e}")
+
+            completed += 1
+            conn = sqlite3.connect(target_db)
+            conn.execute("UPDATE search_progress SET completed=?, updated_at=? WHERE topic_id=?",
+                         (completed, datetime.utcnow().isoformat(), topic_id))
+            conn.commit()
+            conn.close()
+
+    # Mark as done
+    conn = sqlite3.connect(target_db)
+    conn.execute("UPDATE search_progress SET status='done', current_source='', updated_at=? WHERE topic_id=?",
+                 (datetime.utcnow().isoformat(), topic_id))
+    conn.commit()
+    conn.close()

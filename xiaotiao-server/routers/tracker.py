@@ -75,6 +75,27 @@ async def check_now(topic_id: str, background_tasks: BackgroundTasks, request: R
     return {"status": "checking", "topic_id": topic_id, "sources": sources}
 
 
+@router.get(
+    "/{topic_id}/progress",
+    summary="查询搜索进度",
+    description="返回当前主题搜索的进度百分比和状态。",
+)
+def get_search_progress(topic_id: str, db=Depends(get_db)):
+    row = db.execute("SELECT * FROM search_progress WHERE topic_id=?", (topic_id,)).fetchone()
+    if not row:
+        return {"status": "idle", "percentage": 0, "completed": 0, "total": 0, "current_source": ""}
+    total = row["total"] or 1
+    completed = row["completed"] or 0
+    pct = int(completed / total * 100)
+    return {
+        "status": row["status"],
+        "percentage": pct,
+        "completed": completed,
+        "total": total,
+        "current_source": row["current_source"] or "",
+    }
+
+
 # ── Discovered Papers ─────────────────────────
 
 @router.get(

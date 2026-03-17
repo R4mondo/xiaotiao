@@ -326,7 +326,7 @@ window.__checkNow = async (id) => {
   const btn = document.querySelector(`button[onclick="window.__checkNow('${id}')"]`);
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span class="search-spinner"></span> 正在搜索...`;
+    btn.innerHTML = `<span class="search-spinner"></span> 启动搜索...`;
     btn.style.opacity = '0.7';
   }
 
@@ -334,28 +334,62 @@ window.__checkNow = async (id) => {
     const res = await authFetch(`${API_BASE}/topics/${id}/check-now`, { method: 'POST' });
     const result = await res.json();
     const sourceCount = (result.sources || []).length;
-    window.showToast(`正在从 ${sourceCount} 个来源搜索论文，请稍候...`, 'info');
+    window.showToast(`正在从 ${sourceCount} 个来源搜索论文...`, 'info');
 
-    // Progressive polling: check results at intervals
-    let pollCount = 0;
+    // Poll progress endpoint for real percentage
     const pollInterval = setInterval(async () => {
-      pollCount++;
-      await loadDiscoveredPapers();
-      if (btn) {
-        const dots = '.'.repeat((pollCount % 3) + 1);
-        btn.innerHTML = `<span class="search-spinner"></span> 搜索中${dots}`;
-      }
-      if (pollCount >= 8) {
-        clearInterval(pollInterval);
+      try {
+        const progRes = await authFetch(`${API_BASE}/topics/${id}/progress`);
+        const prog = await progRes.json();
+
+        const pct = prog.percentage || 0;
+        const currentSrc = SOURCE_LABELS[prog.current_source] || prog.current_source || '';
+
         if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '立即检查';
-          btn.style.opacity = '1';
+          if (prog.status === 'searching') {
+            btn.innerHTML = `<span class="search-spinner"></span> ${pct}% — 正在搜索 ${currentSrc}`;
+          } else {
+            btn.innerHTML = `<span class="search-spinner"></span> ${pct}%`;
+          }
         }
-        await loadTopics();
-        window.showToast('搜索完成！查看发现的论文', 'success');
+
+        // Also refresh papers list while searching
+        await loadDiscoveredPapers();
+
+        if (prog.status === 'done' || pct >= 100) {
+          clearInterval(pollInterval);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '立即检查';
+            btn.style.opacity = '1';
+          }
+          // Auto-switch to pending tab to show new results
+          currentFilter = 'pending';
+          document.querySelectorAll('.discovered-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.filter === 'pending');
+          });
+          await loadDiscoveredPapers();
+          await loadTopics();
+
+          // Count new papers
+          const papersRes = await authFetch(`${API_BASE}/topics/papers?status=pending`);
+          const papers = await papersRes.json();
+          window.showToast(`搜索完成！发现 ${papers.length} 篇待处理论文`, 'success');
+        }
+      } catch (e) {
+        // Ignore polling errors
       }
-    }, 5000);
+    }, 3000);
+
+    // Safety timeout: stop after 5 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '立即检查';
+        btn.style.opacity = '1';
+      }
+    }, 300000);
   } catch (e) {
     window.showToast('检查失败: ' + e.message, 'error');
     if (btn) {
