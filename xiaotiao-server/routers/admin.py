@@ -628,6 +628,8 @@ def admin_dashboard(request: Request):
             how_html += f'<div class="hiw-step {color_cls}"><span class="hiw-num">{idx+1}</span><span class="hiw-text">{step["text"]}</span></div>{connector}'
 
         # Build requires HTML with expandable API key details
+        fid = f["id"]
+        compatible = get_compatible_providers(fid)
         req_html = ""
         for r in f.get("requires", []):
             req_html += f'<span class="req-item">{r}</span>'
@@ -649,8 +651,6 @@ def admin_dashboard(request: Request):
             </div>'''
 
         # Build per-feature API assignment selector
-        fid = f["id"]
-        compatible = get_compatible_providers(fid)
         assign = assignments.get(fid, {})
         current_provider = assign.get("provider", "mock")
         is_override = assign.get("is_override", False)
