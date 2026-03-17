@@ -566,6 +566,20 @@ export function initTopicExplorer() {
             <div class="gen-article__text">${sanitizeHtml(data.result_text)}</div>
           </div>
 
+          ${data.translation_text ? `
+          <div class="gen-article__section">
+            <div class="gen-article__section-title" style="display:flex;align-items:center;justify-content:space-between;">
+              <span>🀄 逐段中文翻译</span>
+              <button class="btn btn--sm btn--ghost" onclick="this.closest('.gen-article__section').querySelector('.gen-article__translation').classList.toggle('collapsed')">
+                收起/展开
+              </button>
+            </div>
+            <div class="gen-article__translation" style="background:rgba(255,255,255,0.03);border-radius:8px;padding:16px;margin-top:8px;line-height:1.8;color:#94a3b8;font-size:0.95em;">
+              ${sanitizeHtml(data.translation_text)}
+            </div>
+          </div>
+          ` : ''}
+
           <div class="gen-article__section">
             <div class="gen-article__section-title">📚 关键术语 (${data.terms.length})</div>
             <div class="terms-grid">

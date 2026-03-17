@@ -39,7 +39,8 @@ Constraints:
 1. Ensure the article length is close to the target length (+/- 50 words).
 2. You MUST use ALL provided "db_words" naturally within the text.
 3. Introduce exactly the specified number of new interesting domain vocabulary words.
-4. Return one raw valid JSON object only. No markdown wrappers.
+4. You MUST provide a "translation_text" field containing a sentence-by-sentence Chinese translation of the article. Each paragraph in translation_text should correspond to the same paragraph in result_text. Use <p> tags for paragraphs.
+5. Return one raw valid JSON object only. No markdown wrappers.
 
 ---
 {# ====== USER PROMPT ====== #}

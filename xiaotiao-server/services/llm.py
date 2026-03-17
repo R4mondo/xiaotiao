@@ -470,7 +470,8 @@ async def _call_openai_stream(system_prompt: str, user_prompt: str, max_tokens: 
                         data = json.loads(chunk)
                     except json.JSONDecodeError:
                         continue
-                    delta = data.get("choices", [{}])[0].get("delta", {})
+                    choices = data.get("choices") or [{}]
+                    delta = choices[0].get("delta", {}) if choices else {}
                     text = delta.get("content")
                     if text:
                         yield text
