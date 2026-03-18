@@ -2502,38 +2502,9 @@ textarea.form-input {
 }
 
 /* PDF text layer for selection — must match pdfjs expectations */
-.textLayer {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  opacity: 1;
-  line-height: 1;
-  text-size-adjust: none;
-  forced-color-adjust: none;
-  transform-origin: 0 0;
-  z-index: 2;
-  color: transparent;
-  user-select: text;
-  pointer-events: auto;
-}
-
-.textLayer :is(span, br) {
-  color: transparent;
-  position: absolute;
-  white-space: pre;
-  cursor: text;
-  transform-origin: 0% 0%;
-  pointer-events: all;
-}
-
-.textLayer > :not(.markedContent),
-.textLayer .markedContent span:not(.markedContent) {
-  z-index: 1;
-}
-
+/* PDF.js textLayer overrides (base styles come from pdfjs-dist/web/pdf_viewer.css) */
 .textLayer ::selection {
   background: rgba(0, 120, 255, 0.3);
-  color: transparent;
 }
 
 /* Visual highlight for annotated text */

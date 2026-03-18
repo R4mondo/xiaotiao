@@ -1,4 +1,5 @@
 // PDF Reader Page — /papers/:id/read
+import 'pdfjs-dist/web/pdf_viewer.css';
 import { streamAI, renderMarkdown, startSimulatedProgress } from '../utils/stream.js';
 import { authFetch } from '../utils/http.js';
 import { addExtraButtons } from '../components/word_selector.js';
