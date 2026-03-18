@@ -39,6 +39,7 @@ AVAILABLE_SOURCES = {
     "core": {"label": "CORE", "status": "active", "description": "全球开放获取论文聚合"},
     "cnki": {"label": "CNKI (知网)", "status": "active", "description": "中国知网 (中文论文)"},
     "ssrn": {"label": "SSRN", "status": "active", "description": "社科/法律预印本 (Elsevier)"},
+    "baidu_scholar": {"label": "百度学术", "status": "active", "description": "百度学术搜索 (国内可靠)"},
 }
 
 
@@ -647,6 +648,80 @@ def _parse_ssrn_html(html_text):
 # ═══════════════════════════════════════════
 #  Unified dispatcher — search all selected sources
 # ═══════════════════════════════════════════
+
+# ── Baidu Scholar Search (百度学术 — web scraping) ──
+async def search_baidu_scholar_for_topic(topic_id: str, title: str, max_results: int = 10, db_path: str = None):
+    """Search Baidu Scholar for academic papers. Reliable from Chinese servers."""
+    import httpx
+    import sqlite3
+
+    target_db = db_path or os.getenv("DB_PATH", "./db/xiaotiao.db")
+    conn = sqlite3.connect(target_db)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(
+                "https://xueshu.baidu.com/s",
+                params={"wd": title, "pn": 0, "ie": "utf-8"},
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Accept-Language": "zh-CN,zh;q=0.9",
+                    "Referer": "https://xueshu.baidu.com/",
+                }
+            )
+            resp.raise_for_status()
+
+        papers_found = _parse_baidu_scholar_html(resp.text)
+
+        sub_folder_id, sub_folder_name = _get_or_create_folders(conn, topic_id, title)
+        now = datetime.utcnow().isoformat()
+        imported_count = 0
+
+        for p in papers_found[:max_results]:
+            brief = await _generate_brief(p["title"], p.get("abstract", ""))
+            if _save_paper(conn, topic_id, p["title"], p["url"], brief, sub_folder_id, "baidu_scholar", now):
+                imported_count += 1
+
+        conn.execute("UPDATE topics SET last_checked_at=? WHERE id=?", (now, topic_id))
+        conn.commit()
+        print(f"[tracker] BaiduScholar: imported {imported_count} papers for '{title}'")
+
+    except Exception as exc:
+        print(f"[tracker] BaiduScholar search error for topic {topic_id}: {exc}")
+    finally:
+        conn.close()
+
+
+def _parse_baidu_scholar_html(html_text):
+    """Parse Baidu Scholar search results HTML."""
+    papers = []
+    # Each result is in a div with class "result"
+    # Title is in <h3 class="t"><a>...</a></h3>
+    # Abstract is in <div class="c_abstract">...</div>
+    title_pattern = r'<h3[^>]*class="t"[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
+    abstract_pattern = r'<div[^>]*class="c_abstract"[^>]*>(.*?)</div>'
+
+    titles = list(re.finditer(title_pattern, html_text, re.DOTALL))
+    abstracts = list(re.finditer(abstract_pattern, html_text, re.DOTALL))
+
+    for i, match in enumerate(titles):
+        url = match.group(1)
+        raw_title = re.sub(r'<[^>]+>', '', match.group(2)).strip()
+        abstract = ""
+        if i < len(abstracts):
+            abstract = re.sub(r'<[^>]+>', '', abstracts[i].group(1)).strip()
+
+        if raw_title and url:
+            papers.append({
+                "title": raw_title,
+                "url": url,
+                "abstract": abstract
+            })
+    return papers
+
+
 SOURCE_SEARCH_MAP = {
     "arxiv": search_arxiv_for_topic,
     "openalex": search_openalex_for_topic,
@@ -656,6 +731,7 @@ SOURCE_SEARCH_MAP = {
     "core": search_core_for_topic,
     "cnki": search_cnki_for_topic,
     "ssrn": search_ssrn_for_topic,
+    "baidu_scholar": search_baidu_scholar_for_topic,
 }
 
 

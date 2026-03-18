@@ -558,6 +558,117 @@ select {
   background: rgba(255, 255, 255, 0.7) !important;
 }
 
+.nav-group-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 4px;
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
+.nav-group-sep {
+  display: block;
+  width: 1px;
+  height: 18px;
+  background: var(--border-primary);
+  opacity: 0.3;
+  margin: 0 2px;
+  align-self: center;
+}
+
+/* ── Home Page: 3-Section Cards ── */
+.home-sections {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 32px;
+}
+
+.home-section {
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--r-xl);
+  padding: 28px 24px;
+  transition: transform var(--dur-fast) var(--ease-spring),
+              box-shadow var(--dur-fast) var(--ease);
+  cursor: default;
+}
+
+.home-section:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glass-hover);
+}
+
+.home-section__icon {
+  font-size: 2rem;
+  margin-bottom: 12px;
+}
+
+.home-section__title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.home-section__subtitle {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.home-section__links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-section__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 500;
+  transition: background 150ms ease, transform 100ms ease;
+  cursor: pointer;
+}
+
+.home-section__link:hover {
+  background: rgba(255,255,255,0.06);
+  transform: translateX(4px);
+}
+
+.home-section__link-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.home-section__link-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .home-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ══════════════════════════════════════════════
    HERO SECTION
    ══════════════════════════════════════════════ */

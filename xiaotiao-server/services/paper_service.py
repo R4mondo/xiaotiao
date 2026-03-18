@@ -72,6 +72,90 @@ async def fetch_arxiv_metadata(arxiv_id: str) -> dict:
     }
 
 
+async def fetch_metadata_by_title(title: str) -> dict:
+    """Try to find paper metadata (authors, DOI, abstract) via CrossRef, then OpenAlex."""
+    import httpx
+    meta = {}
+
+    # ── CrossRef ──
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.crossref.org/works",
+                params={"query.bibliographic": title, "rows": 1, "sort": "relevance"},
+                headers={"User-Agent": "xiaotiao/1.0 (mailto:xiaotiao@example.com)"},
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("message", {}).get("items", [])
+                if items:
+                    item = items[0]
+                    cr_title = (item.get("title") or [""])[0]
+                    # Only use if title similarity is reasonable
+                    if cr_title and _title_similar(title, cr_title):
+                        meta["doi"] = item.get("DOI", "")
+                        # Authors
+                        authors = item.get("author", [])
+                        author_names = []
+                        for a in authors:
+                            given = a.get("given", "")
+                            family = a.get("family", "")
+                            author_names.append(f"{given} {family}".strip())
+                        if author_names:
+                            meta["authors"] = json.dumps(author_names)
+                        # Abstract
+                        abstract = item.get("abstract", "")
+                        if abstract:
+                            meta["abstract"] = re.sub(r"<[^>]+>", "", abstract).strip()
+                        return meta
+    except Exception as e:
+        print(f"[paper_service] CrossRef metadata lookup failed: {e}")
+
+    # ── OpenAlex fallback ──
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.openalex.org/works",
+                params={"search": title, "per_page": 1, "mailto": "xiaotiao@example.com"},
+                headers={"User-Agent": "xiaotiao/1.0"},
+            )
+            if resp.status_code == 200:
+                results = resp.json().get("results", [])
+                if results:
+                    work = results[0]
+                    w_title = work.get("title", "")
+                    if w_title and _title_similar(title, w_title):
+                        meta["doi"] = (work.get("doi") or "").replace("https://doi.org/", "")
+                        # Authors from authorships
+                        authorships = work.get("authorships", [])
+                        author_names = [a.get("author", {}).get("display_name", "") for a in authorships if a.get("author")]
+                        if author_names:
+                            meta["authors"] = json.dumps(author_names)
+                        # Abstract from inverted index
+                        inv = work.get("abstract_inverted_index")
+                        if inv and isinstance(inv, dict):
+                            positions = []
+                            for word, pos_list in inv.items():
+                                for pos in pos_list:
+                                    positions.append((pos, word))
+                            positions.sort()
+                            meta["abstract"] = " ".join(w for _, w in positions)
+                        return meta
+    except Exception as e:
+        print(f"[paper_service] OpenAlex metadata lookup failed: {e}")
+
+    return meta
+
+
+def _title_similar(t1: str, t2: str) -> bool:
+    """Simple title similarity check — normalized lowercase prefix match."""
+    a = re.sub(r"[^a-z0-9 ]", "", t1.lower()).strip()
+    b = re.sub(r"[^a-z0-9 ]", "", t2.lower()).strip()
+    if not a or not b:
+        return False
+    # Check if first 40 chars match, or one contains the other
+    return a[:40] == b[:40] or a in b or b in a
+
+
 async def process_paper_url(paper_id: str, url: str, db_path: Optional[str] = None):
     """Background task: fetch metadata for a paper URL and update the record."""
     conn = _connect(db_path)
@@ -104,9 +188,28 @@ async def process_paper_url(paper_id: str, url: str, db_path: Optional[str] = No
             title_match = re.search(r'<title>(.*?)</title>', resp.text, re.IGNORECASE | re.DOTALL)
             title = title_match.group(1).strip() if title_match else url
 
+        # Auto-enrich with CrossRef/OpenAlex metadata
+        enriched = await fetch_metadata_by_title(title)
+        doi = enriched.get("doi", "")
+        authors = enriched.get("authors", "")
+        abstract = enriched.get("abstract", "")
+
+        update_fields = ["title=?", "status='ready'", "updated_at=?"]
+        update_values = [title, datetime.utcnow().isoformat()]
+        if doi:
+            update_fields.append("doi=?")
+            update_values.append(doi)
+        if authors:
+            update_fields.append("authors=?")
+            update_values.append(authors)
+        if abstract:
+            update_fields.append("abstract=?")
+            update_values.append(abstract)
+
+        update_values.append(paper_id)
         conn.execute(
-            "UPDATE papers SET title=?, status='ready', updated_at=? WHERE id=?",
-            (title, datetime.utcnow().isoformat(), paper_id)
+            f"UPDATE papers SET {', '.join(update_fields)} WHERE id=?",
+            tuple(update_values)
         )
         conn.commit()
     except Exception as e:

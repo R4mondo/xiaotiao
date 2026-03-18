@@ -40,26 +40,18 @@ export function renderHome() {
             输入法律主题，即刻获得专业英文学习材料。<br>
             粘贴法律文本，AI 为你逐段解读重点。中英互译，三种法律风格对照提升。
           </p>
-          <div class="hero__actions">
-            <button class="btn btn--primary btn--lg" onclick="location.hash='/topic'">
-              开始探索主题 →
-            </button>
-            <button class="btn btn--ghost btn--lg" onclick="location.hash='/article'">
-              解读法律文本
-            </button>
-          </div>
           <div class="hero__stats">
             <div class="hero__stat">
-              <div class="hero__stat-value">6</div>
-              <div class="hero__stat-label">核心学习模块</div>
+              <div class="hero__stat-value">3</div>
+              <div class="hero__stat-label">核心板块</div>
+            </div>
+            <div class="hero__stat">
+              <div class="hero__stat-value">7</div>
+              <div class="hero__stat-label">功能模块</div>
             </div>
             <div class="hero__stat">
               <div class="hero__stat-value">&lt;15s</div>
               <div class="hero__stat-label">AI 响应时间</div>
-            </div>
-            <div class="hero__stat">
-              <div class="hero__stat-value">∞</div>
-              <div class="hero__stat-label">可生成主题数</div>
             </div>
           </div>
         </div>
@@ -68,117 +60,67 @@ export function renderHome() {
 
     <section class="modules">
       <div class="container">
-        <div class="modules__grid">
-          <!-- Paper Library Card -->
-          <div class="module-card module-card--research" onclick="location.hash='/papers'" id="card-papers">
-            <div class="module-card__icon">📄</div>
-            <div class="module-card__subtitle">模块 · 论文</div>
-            <h3 class="module-card__title">论文库 (Paper Library)</h3>
-            <p class="module-card__desc">
-              批量导入学术论文，AI 智能解读核心要点，管理你的研究文献库。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">URL 批量导入 / PDF 上传</li>
-              <li class="module-card__feature">AI Insight 结构化解读</li>
-              <li class="module-card__feature">论文对话问答</li>
-              <li class="module-card__feature">PDF 逐页阅读 + 摘要</li>
-            </ul>
-            <div class="module-card__cta">
-              进入论文库 <span class="arrow">→</span>
+        <div class="home-sections">
+
+          <!-- 学术研究 -->
+          <div class="home-section">
+            <div class="home-section__icon">📚</div>
+            <div class="home-section__title">学术研究</div>
+            <div class="home-section__subtitle">论文管理 · 主题追踪 · 文献发现</div>
+            <div class="home-section__links">
+              <a class="home-section__link" href="#/papers">
+                <span class="home-section__link-icon" style="background:var(--research)"></span>
+                论文库 (Paper Library)
+                <span class="home-section__link-desc">AI 解读 · PDF 阅读 · 论文对话</span>
+              </a>
+              <a class="home-section__link" href="#/tracker">
+                <span class="home-section__link-icon" style="background:#f472b6"></span>
+                主题追踪 (Tracker)
+                <span class="home-section__link-desc">多源检索 · 自动发现论文</span>
+              </a>
             </div>
           </div>
 
-          <!-- Topic Explorer Card -->
-          <div class="module-card module-card--topic" onclick="location.hash='/topic'" id="card-topic">
-            <div class="module-card__icon">🔍</div>
-            <div class="module-card__subtitle">模块 01</div>
-            <h3 class="module-card__title">主题探索 (Topic Explorer)</h3>
-            <p class="module-card__desc">
-              输入涉外法治主题，AI 即刻生成专业英文学习材料，配套术语解析与法律概念说明。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">主题关键词生成英文文章</li>
-              <li class="module-card__feature">关键术语列表 + 中文释义</li>
-              <li class="module-card__feature">术语可展开查看例句</li>
-              <li class="module-card__feature">一键跳转翻译训练</li>
-            </ul>
-            <div class="module-card__cta">
-              探索主题 <span class="arrow">→</span>
+          <!-- 语言学习 -->
+          <div class="home-section">
+            <div class="home-section__icon">📝</div>
+            <div class="home-section__title">语言学习</div>
+            <div class="home-section__subtitle">主题探索 · 文章解读 · 翻译训练</div>
+            <div class="home-section__links">
+              <a class="home-section__link" href="#/topic">
+                <span class="home-section__link-icon" style="background:var(--topic)"></span>
+                主题探索 (Topic Explorer)
+                <span class="home-section__link-desc">AI 生成专业英文学习材料</span>
+              </a>
+              <a class="home-section__link" href="#/article">
+                <span class="home-section__link-icon" style="background:var(--article)"></span>
+                文章实验室 (Article Lab)
+                <span class="home-section__link-desc">粘贴文本 · AI 分段解读</span>
+              </a>
+              <a class="home-section__link" href="#/translation">
+                <span class="home-section__link-icon" style="background:var(--translation)"></span>
+                翻译工作室 (Translation Studio)
+                <span class="home-section__link-desc">中英互译 · 三种风格对照</span>
+              </a>
             </div>
           </div>
 
-          <!-- Article Lab Card -->
-          <div class="module-card module-card--article" onclick="location.hash='/article'" id="card-article">
-            <div class="module-card__icon">📖</div>
-            <div class="module-card__subtitle">模块 02</div>
-            <h3 class="module-card__title">文章实验室 (Article Lab)</h3>
-            <p class="module-card__desc">
-              粘贴英文法律文本，获得 AI 分段解读、术语提取和关键句说明，减少阅读障碍。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">支持粘贴文本或上传文件</li>
-              <li class="module-card__feature">基础解读 / 法律重点解读</li>
-              <li class="module-card__feature">分段中文解释 + 术语提取</li>
-              <li class="module-card__feature">关键句标注与说明</li>
-            </ul>
-            <div class="module-card__cta">
-              开始解读 <span class="arrow">→</span>
-            </div>
-          </div>
-
-          <!-- Translation Studio Card -->
-          <div class="module-card module-card--translation" onclick="location.hash='/translation'" id="card-translation">
-            <div class="module-card__icon">🌐</div>
-            <div class="module-card__subtitle">模块 03</div>
-            <h3 class="module-card__title">翻译工作室 (Translation Studio)</h3>
-            <p class="module-card__desc">
-              中英法律文本互译，提供直译、法律表达、简明三种风格对照，附带表达建议。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">EN→ZH / ZH→EN 双向翻译</li>
-              <li class="module-card__feature">直译版 / 法律版 / 简明版</li>
-              <li class="module-card__feature">表达建议与常见错误提示</li>
-              <li class="module-card__feature">可复制每种风格翻译结果</li>
-            </ul>
-            <div class="module-card__cta">
-              翻译训练 <span class="arrow">→</span>
-            </div>
-          </div>
-
-          <div class="module-card module-card--vocab" onclick="location.hash='/vocab'" id="card-vocab">
-            <div class="module-card__icon">🗂️</div>
-            <div class="module-card__subtitle">模块 04</div>
-            <h3 class="module-card__title">生词本 (Vocabulary)</h3>
-            <p class="module-card__desc">
-              收集学习过程中的关键词，统一管理并复习，形成长期词汇积累。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">一键加入并自动去重</li>
-              <li class="module-card__feature">按领域筛选与检索</li>
-              <li class="module-card__feature">查看复习进度和状态</li>
-              <li class="module-card__feature">支持补充释义与例句</li>
-            </ul>
-            <div class="module-card__cta">
-              打开生词本 <span class="arrow">→</span>
-            </div>
-          </div>
-
-          <!-- Tracker Card -->
-          <div class="module-card module-card--tracker" onclick="location.hash='/tracker'" id="card-tracker">
-            <div class="module-card__icon">🔔</div>
-            <div class="module-card__subtitle">模块 · 追踪</div>
-            <h3 class="module-card__title">主题追踪 (Tracker)</h3>
-            <p class="module-card__desc">
-              追踪感兴趣的研究主题，自动发现最新论文，构建你的学术信息漏斗。
-            </p>
-            <ul class="module-card__features">
-              <li class="module-card__feature">关键词追踪主题</li>
-              <li class="module-card__feature">ArXiv 自动检索</li>
-              <li class="module-card__feature">一键收录到论文库</li>
-              <li class="module-card__feature">每日/每周自动检查</li>
-            </ul>
-            <div class="module-card__cta">
-              开始追踪 <span class="arrow">→</span>
+          <!-- 数据追踪 -->
+          <div class="home-section">
+            <div class="home-section__icon">📊</div>
+            <div class="home-section__title">数据追踪</div>
+            <div class="home-section__subtitle">生词管理 · 学习统计 · 复习进度</div>
+            <div class="home-section__links">
+              <a class="home-section__link" href="#/vocab">
+                <span class="home-section__link-icon" style="background:#fbbf24"></span>
+                生词本 (Vocabulary)
+                <span class="home-section__link-desc">词汇积累 · SRS 复习</span>
+              </a>
+              <a class="home-section__link" href="#/progress">
+                <span class="home-section__link-icon" style="background:#4ade80"></span>
+                学习进度 (Progress)
+                <span class="home-section__link-desc">学习数据统计与可视化</span>
+              </a>
             </div>
           </div>
 

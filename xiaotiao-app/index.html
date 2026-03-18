@@ -26,15 +26,18 @@
         <div class="navbar__logo">译</div>
         <div class="navbar__title"><span>再译</span></div>
       </div>
-      <!-- Desktop Segmented Nav -->
+      <!-- Desktop Grouped Nav -->
       <div class="navbar__nav segmented" id="navbar-segmented">
         <div class="segmented__slider" id="navbar-slider"></div>
-        <a href="#/home" class="nav-link segmented__btn" data-route="/home">
-          首页
-        </a>
+        <span class="nav-group-label">学术研究</span>
         <a href="#/papers" class="nav-link segmented__btn" data-route="/papers">
           <span class="nav-dot" style="background:var(--research)"></span>论文库
         </a>
+        <a href="#/tracker" class="nav-link segmented__btn" data-route="/tracker">
+          <span class="nav-dot" style="background:#f472b6"></span>追踪
+        </a>
+        <span class="nav-group-sep"></span>
+        <span class="nav-group-label">语言学习</span>
         <a href="#/topic" class="nav-link segmented__btn" data-route="/topic">
           <span class="nav-dot" style="background:var(--topic)"></span>主题探索
         </a>
@@ -44,9 +47,8 @@
         <a href="#/translation" class="nav-link segmented__btn" data-route="/translation">
           <span class="nav-dot" style="background:var(--translation)"></span>翻译工作室
         </a>
-        <a href="#/tracker" class="nav-link segmented__btn" data-route="/tracker">
-          <span class="nav-dot" style="background:#f472b6"></span>追踪
-        </a>
+        <span class="nav-group-sep"></span>
+        <span class="nav-group-label">数据追踪</span>
         <a href="#/vocab" class="nav-link segmented__btn" data-route="/vocab">
           <span class="nav-dot" style="background:#fbbf24"></span>生词本
         </a>
