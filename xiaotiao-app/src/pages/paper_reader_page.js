@@ -165,8 +165,8 @@ export async function initPaperReaderPage(params) {
 
       const textLayerDiv = document.createElement('div');
       textLayerDiv.className = 'textLayer';
-      // Use CSS inset:0 so textLayer matches wrapper exactly
-      textLayerDiv.style.cssText = `position:absolute;inset:0;z-index:2;overflow:hidden;`;
+      // pdfjs v5 requires --total-scale-factor CSS variable for text positioning
+      textLayerDiv.style.cssText = `position:absolute;inset:0;--total-scale-factor:${currentScale};`;
 
       wrapper.appendChild(canvas);
       wrapper.appendChild(textLayerDiv);
@@ -222,7 +222,7 @@ export async function initPaperReaderPage(params) {
 
           // Auto-generate summary for new pages
           if (!summariesGenerated.has(pageNum)) {
-            summariesGenerated.add(pageNum);
+            // NOTE: do NOT add to summariesGenerated here — let generatePageSummary manage it
             generatePageSummary(doc, pageNum, paperId);
           }
         }
@@ -239,7 +239,7 @@ export async function initPaperReaderPage(params) {
 
   async function generatePageSummary(doc, pageNum, paperId, force = false) {
     if (!force && summariesGenerated.has(pageNum)) return;
-    if (force) summariesGenerated.add(pageNum);
+    summariesGenerated.add(pageNum);  // Mark as generated to prevent duplicate calls
     const page = await doc.getPage(pageNum);
     const textContent = await page.getTextContent();
     const text = textContent.items.map(item => item.str).join(' ');
