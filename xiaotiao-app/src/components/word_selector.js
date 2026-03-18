@@ -445,6 +445,10 @@ export function initGlobalWordSelector() {
 /** Add extra buttons to the toolbar (for page-specific actions like 翻译/摘要) */
 export function addExtraButtons(buttons) {
   if (!_toolbar) return;
+  // Remove any previously added extra buttons to avoid duplicates
+  _extraBtns.forEach(btn => btn.remove());
+  _extraBtns = [];
+
   buttons.forEach(({ label, icon, className, onClick }) => {
     const btn = document.createElement('button');
     btn.className = `word-selector-bar__btn ${className || ''}`;
