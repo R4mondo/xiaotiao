@@ -566,7 +566,7 @@ async def chat_with_paper(paper_id: str, body: ChatRequest, request: Request, db
 
     async def generate():
         full_response = ""
-        async for chunk in call_claude_stream(system_prompt, body.message, feature_id="paper_ai"):
+        async for chunk in call_claude_stream(system_prompt, body.message, feature_id="paper_chat"):
             full_response += chunk
             yield chunk
 
@@ -616,7 +616,7 @@ async def translate_selection(paper_id: str, body: TextRequest):
     system_prompt = "你是一位专业翻译。请将以下英文学术文本翻译为准确、流畅的中文。只输出翻译结果，不要添加解释。"
 
     async def generate():
-        async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_ai"):
+        async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_translate"):
             yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
@@ -636,7 +636,7 @@ async def explain_selection(paper_id: str, body: TextRequest):
 用中文回答，简洁明了。"""
 
     async def generate():
-        async for chunk in call_claude_stream(system_prompt, body.text[:2000]):
+        async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_reader"):
             yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
@@ -655,7 +655,7 @@ async def summarize_selection(paper_id: str, body: TextRequest):
 3. 使用简洁中文"""
 
     async def generate():
-        async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_ai"):
+        async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_glossary"):
             yield chunk
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
@@ -719,7 +719,24 @@ def serve_pdf(paper_id: str, db=Depends(get_db)):
         return FileResponse(row["pdf_path"], media_type="application/pdf")
 
     if row["pdf_url"]:
-        # Return the URL for client-side fetching
-        return {"pdf_url": row["pdf_url"]}
+        # Try to download and cache the PDF server-side (avoids China firewall issues)
+        import httpx
+        upload_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", "papers")
+        os.makedirs(upload_dir, exist_ok=True)
+        local_path = os.path.join(upload_dir, f"{paper_id}.pdf")
+
+        try:
+            with httpx.Client(timeout=30, follow_redirects=True) as client:
+                resp = client.get(row["pdf_url"])
+                resp.raise_for_status()
+                with open(local_path, "wb") as f:
+                    f.write(resp.content)
+            # Update database with local path
+            db.execute("UPDATE papers SET pdf_path=? WHERE id=?", (local_path, paper_id))
+            db.commit()
+            return FileResponse(local_path, media_type="application/pdf")
+        except Exception:
+            # Fallback: return URL for client-side fetching
+            return {"pdf_url": row["pdf_url"]}
 
     raise HTTPException(404, "该论文没有可用 PDF。")

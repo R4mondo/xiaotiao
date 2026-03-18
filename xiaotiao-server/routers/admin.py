@@ -218,6 +218,100 @@ AI_FEATURES = [
             {"step": "response", "label": "返回前端", "test": "auto"},
         ],
     },
+    {
+        "id": "paper_reader",
+        "name": "PDF 阅读器 AI 概要",
+        "icon": "📖",
+        "frontend": "论文阅读器",
+        "frontend_path": "/#/papers/:id/read",
+        "frontend_action": "滚动阅读 PDF → AI 自动生成逐页概要",
+        "template": None,
+        "call_type": "Stream",
+        "description": "在 PDF 阅读器中，AI 自动为每一页生成阅读概要和关键要点",
+        "how_it_works": [
+            {"who": "user", "text": "👤 用户在 PDF 阅读器中滚动阅读"},
+            {"who": "system", "text": "⚙️ 检测到新页面可见，提取页面文本"},
+            {"who": "ai", "text": "🤖 AI 流式生成页面概要"},
+            {"who": "system", "text": "📤 实时显示在侧边栏"},
+        ],
+        "requires": ["🔑 AI API Key(支持 Stream)"],
+        "variables": [],
+        "pipeline": [
+            {"step": "request", "label": "页面文本提取", "test": "route"},
+            {"step": "llm", "label": "AI 概要生成", "test": "llm_stream"},
+            {"step": "response", "label": "侧边栏展示", "test": "auto"},
+        ],
+    },
+    {
+        "id": "paper_chat",
+        "name": "论文对话问答",
+        "icon": "💬",
+        "frontend": "论文详情/阅读器",
+        "frontend_path": "/#/papers/:id",
+        "frontend_action": "基于论文内容提问 → AI 回答",
+        "template": None,
+        "call_type": "Stream",
+        "description": "用户可基于论文内容向 AI 提问，获得上下文相关的回答",
+        "how_it_works": [
+            {"who": "user", "text": "👤 用户输入问题"},
+            {"who": "system", "text": "⚙️ 构建包含论文上下文的 Prompt"},
+            {"who": "ai", "text": "🤖 AI 流式回答"},
+            {"who": "system", "text": "📤 实时渲染回答"},
+        ],
+        "requires": ["🔑 AI API Key(支持 Stream)"],
+        "variables": [],
+        "pipeline": [
+            {"step": "request", "label": "前端请求", "test": "route"},
+            {"step": "llm", "label": "AI 对话", "test": "llm_stream"},
+            {"step": "response", "label": "返回前端", "test": "auto"},
+        ],
+    },
+    {
+        "id": "paper_translate",
+        "name": "论文段落翻译",
+        "icon": "🌍",
+        "frontend": "论文阅读器",
+        "frontend_path": "/#/papers/:id/read",
+        "frontend_action": "选中段落 → AI 翻译",
+        "template": None,
+        "call_type": "Stream",
+        "description": "选中论文中的段落文本，AI 流式翻译为中文",
+        "how_it_works": [
+            {"who": "user", "text": "👤 用户选中文本"},
+            {"who": "ai", "text": "🤖 AI 流式翻译"},
+            {"who": "system", "text": "📤 弹窗展示翻译结果"},
+        ],
+        "requires": ["🔑 AI API Key(支持 Stream)"],
+        "variables": [],
+        "pipeline": [
+            {"step": "request", "label": "前端请求", "test": "route"},
+            {"step": "llm", "label": "AI 翻译", "test": "llm_stream"},
+            {"step": "response", "label": "返回前端", "test": "auto"},
+        ],
+    },
+    {
+        "id": "paper_glossary",
+        "name": "论文术语提取",
+        "icon": "📋",
+        "frontend": "论文阅读器",
+        "frontend_path": "/#/papers/:id/read",
+        "frontend_action": "选中段落 → AI 提取专业术语",
+        "template": None,
+        "call_type": "Stream",
+        "description": "从选中的论文段落中提取专业术语及完整释义",
+        "how_it_works": [
+            {"who": "user", "text": "👤 用户选中文本"},
+            {"who": "ai", "text": "🤖 AI 提取术语并给出释义"},
+            {"who": "system", "text": "📤 弹窗展示术语列表"},
+        ],
+        "requires": ["🔑 AI API Key(支持 Stream)"],
+        "variables": [],
+        "pipeline": [
+            {"step": "request", "label": "前端请求", "test": "route"},
+            {"step": "llm", "label": "AI 提取", "test": "llm_stream"},
+            {"step": "response", "label": "返回前端", "test": "auto"},
+        ],
+    },
 ]
 
 
@@ -953,7 +1047,8 @@ def admin_dashboard(request: Request):
             }});
             const data = await resp.json();
             if (data.ok) {{
-                result.innerHTML = '<span class="ok">✅ 配置已保存并已生效！已更新: ' + (data.updated||[]).join(', ') + '</span>';
+                result.innerHTML = '<span class="ok">✅ 配置已保存！正在刷新页面... 已更新: ' + (data.updated||[]).join(', ') + '</span>';
+                setTimeout(() => location.reload(), 1200);
             }} else {{
                 result.innerHTML = '<span class="err">❌ ' + (data.error || '保存失败') + '</span>';
             }}

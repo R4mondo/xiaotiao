@@ -107,6 +107,10 @@ FEATURE_REQUIRED_CAPS: dict[str, list[str]] = {
     "translation":      ["json"],
     "multimodal":       ["json", "vision"],
     "paper_ai":         ["stream"],
+    "paper_reader":     ["stream"],
+    "paper_chat":       ["stream"],
+    "paper_translate":  ["stream"],
+    "paper_glossary":   ["stream"],
     "vocab_import":     ["json"],  # vision is optional for vocab
     "concept_analysis": ["json"],
 }
