@@ -624,11 +624,13 @@ async def page_summary(paper_id: str, body: PageSummaryRequest):
     description="将选中的英文段落翻译为中文（流式输出）。",
 )
 async def translate_selection(paper_id: str, body: TextRequest):
-    system_prompt = """你是一位专业的英中翻译。请将以下英文学术文本翻译为准确、流畅的中文。
-要求：
-1. 必须输出中文翻译，不要输出英文
+    system_prompt = """你是一位专业的英中翻译机器。将以下英文学术文本翻译为准确、流畅的中文。
+严格要求：
+1. 只输出中文翻译结果，不要输出任何英文原文
 2. 保持学术用语的准确性
-3. 只输出翻译结果，不要添加解释或注释"""
+3. 不要添加解释、注释、评论或任何额外内容
+4. 不要提问，不要说"请问""需要我"等对话性语句
+5. 直接输出翻译结果，不要有任何前缀或后缀"""
 
     async def generate():
         async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_translate"):
@@ -663,12 +665,14 @@ async def explain_selection(paper_id: str, body: TextRequest):
     description="对选中文本生成简短摘要（流式输出）。",
 )
 async def summarize_selection(paper_id: str, body: TextRequest):
-    system_prompt = """你是一位学术论文阅读助手。请对以下选中的学术文本内容做简要的中文摘要分析。
-要求：
+    system_prompt = """你是一位学术论文摘要生成器。对以下选中的学术文本内容做简要的中文摘要分析。
+严格要求：
 1. 用中文输出 50-120 字的摘要
 2. 解释这段文字在论文中的作用和含义
 3. 提取关键信息和核心观点
-4. 如果是英文内容，先理解含义再做中文摘要"""
+4. 如果是英文内容，先理解含义再做中文摘要
+5. 直接输出摘要内容，不要提问，不要有对话性语句
+6. 不要添加任何前缀后缀，如"好的""以下是""请问"等"""
 
     async def generate():
         async for chunk in call_claude_stream(system_prompt, body.text[:2000], feature_id="paper_glossary"):

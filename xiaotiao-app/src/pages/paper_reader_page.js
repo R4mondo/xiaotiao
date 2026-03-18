@@ -339,6 +339,10 @@ export async function initPaperReaderPage(params) {
     lastSelectionText = selectedText;
 
     if (action === 'highlight') {
+      // Save selection before it gets lost
+      const sel = window.getSelection();
+      const savedRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0).cloneRange() : null;
+
       // Create inline color picker popover
       let picker = document.getElementById('highlight-color-picker');
       if (picker) picker.remove();
@@ -355,26 +359,21 @@ export async function initPaperReaderPage(params) {
         btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
         btn.addEventListener('click', async () => {
           picker.remove();
-          // Apply visual highlight
+          // Apply visual highlight — wrap only the selected text, not the entire span
           try {
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-              const hlRange = sel.getRangeAt(0);
-              const walker = document.createTreeWalker(
-                hlRange.commonAncestorContainer.nodeType === Node.TEXT_NODE
-                  ? hlRange.commonAncestorContainer.parentElement
-                  : hlRange.commonAncestorContainer,
-                NodeFilter.SHOW_TEXT
-              );
-              let node;
-              while (node = walker.nextNode()) {
-                if (hlRange.intersectsNode(node) && node.parentElement) {
-                  const span = node.parentElement.closest('.textLayer span') || node.parentElement;
-                  if (span && span.closest('.textLayer')) {
-                    span.style.backgroundColor = color;
-                    span.style.borderRadius = '2px';
-                  }
-                }
+            if (savedRange) {
+              // Use highlight wrapping: extract selected content and wrap in a <mark> element
+              const mark = document.createElement('mark');
+              mark.style.cssText = `background:${color};border-radius:2px;padding:0;`;
+              mark.className = 'pdf-highlight';
+              try {
+                savedRange.surroundContents(mark);
+              } catch (_e) {
+                // surroundContents fails if range crosses element boundaries
+                // Fallback: extract and re-insert wrapped content
+                const fragment = savedRange.extractContents();
+                mark.appendChild(fragment);
+                savedRange.insertNode(mark);
               }
             }
             await authFetch(`${API_BASE}/papers/${paperId}/annotations`, {
@@ -386,21 +385,27 @@ export async function initPaperReaderPage(params) {
           } catch (e) {
             window.showToast?.('添加失败', 'error');
           }
+          window.getSelection()?.removeAllRanges();
         });
         picker.appendChild(btn);
       });
 
       document.body.appendChild(picker);
 
-      // Position near selection
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        picker.style.left = `${Math.min(rect.left, window.innerWidth - 220)}px`;
-        picker.style.top = `${rect.bottom + 8}px`;
-      } else {
-        picker.style.left = `${window.innerWidth / 2 - 100}px`;
-        picker.style.top = `${window.innerHeight / 3}px`;
+      // Position to the RIGHT of the toolbar (not below the selection)
+      const toolbarEl = document.querySelector('.word-selector-bar.is-visible');
+      if (toolbarEl) {
+        const tbRect = toolbarEl.getBoundingClientRect();
+        picker.style.left = `${tbRect.right + 8}px`;
+        picker.style.top = `${tbRect.top}px`;
+        // If would go off-screen right, put it to the left instead
+        if (tbRect.right + 220 > window.innerWidth) {
+          picker.style.left = `${tbRect.left - 220}px`;
+        }
+      } else if (savedRange) {
+        const rect = savedRange.getBoundingClientRect();
+        picker.style.left = `${rect.right + 8}px`;
+        picker.style.top = `${rect.top}px`;
       }
 
       // Auto-close on outside click
