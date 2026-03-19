@@ -23,111 +23,131 @@ import { startSimulatedProgress } from './utils/stream.js';
 // ============ Shared Layout — Liquid Glass ============
 // Render layout shell is now handled centrally in index.html
 
-// ============ HOME PAGE ============
+// ============ HOME PAGE — V2.0 Personalized ============
 
 export function renderHome() {
   return `
-    <section class="hero">
+    <section class="hero hero--v2">
       <div class="container">
         <div class="hero__content">
-          <div class="hero__badge">
-            ✨ 涉外法治英语学习平台 · V1 MVP
-          </div>
-          <h1 class="hero__title">
-            <span class="gradient-text">华东政法大学涉外法治多模态学习平台</span>
-          </h1>
-          <p class="hero__desc">
-            输入法律主题，即刻获得专业英文学习材料。<br>
-            粘贴法律文本，AI 为你逐段解读重点。中英互译，三种法律风格对照提升。
-          </p>
-          <div class="hero__stats">
-            <div class="hero__stat">
-              <div class="hero__stat-value">3</div>
-              <div class="hero__stat-label">核心板块</div>
-            </div>
-            <div class="hero__stat">
-              <div class="hero__stat-value">7</div>
-              <div class="hero__stat-label">功能模块</div>
-            </div>
-            <div class="hero__stat">
-              <div class="hero__stat-value">&lt;15s</div>
-              <div class="hero__stat-label">AI 响应时间</div>
-            </div>
+          <div class="hero__greeting" id="home-greeting">
+            <h1 class="hero__title">
+              👋 <span id="home-username">你好</span>，欢迎回来
+            </h1>
+            <p class="hero__profile-tags" id="home-profile-tags">
+              <span class="hero__tag">涉外法治英语学习平台</span>
+            </p>
+            <a href="#/settings/profile" class="hero__edit-profile">修改偏好 →</a>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="modules">
+    <section class="home-hub">
       <div class="container">
-        <div class="home-sections">
-
-          <!-- 学术研究 -->
-          <div class="home-section">
-            <div class="home-section__icon">📚</div>
-            <div class="home-section__title">学术研究</div>
-            <div class="home-section__subtitle">论文管理 · 主题追踪 · 文献发现</div>
-            <div class="home-section__links">
-              <a class="home-section__link" href="#/papers">
-                <span class="home-section__link-icon" style="background:var(--research)"></span>
-                论文库 (Paper Library)
-                <span class="home-section__link-desc">AI 解读 · PDF 阅读 · 论文对话</span>
-              </a>
-              <a class="home-section__link" href="#/tracker">
-                <span class="home-section__link-icon" style="background:#f472b6"></span>
-                主题追踪 (Tracker)
-                <span class="home-section__link-desc">多源检索 · 自动发现论文</span>
-              </a>
+        <div class="home-hub__grid">
+          <!-- 文献研究中心 -->
+          <a class="home-hub__card home-hub__card--research" href="#/research">
+            <div class="home-hub__card-icon">📚</div>
+            <div class="home-hub__card-content">
+              <div class="home-hub__card-title">文献研究中心</div>
+              <div class="home-hub__card-desc">论文管理 · AI 文章解读 · 主题追踪</div>
+              <div class="home-hub__card-hint" id="home-research-hint">
+                搜索和阅读学术论文，AI 辅助深度学习
+              </div>
             </div>
-          </div>
+            <div class="home-hub__card-arrow">→</div>
+          </a>
 
-          <!-- 语言学习 -->
-          <div class="home-section">
-            <div class="home-section__icon">📝</div>
-            <div class="home-section__title">语言学习</div>
-            <div class="home-section__subtitle">主题探索 · 文章解读 · 翻译训练</div>
-            <div class="home-section__links">
-              <a class="home-section__link" href="#/topic">
-                <span class="home-section__link-icon" style="background:var(--topic)"></span>
-                主题探索 (Topic Explorer)
-                <span class="home-section__link-desc">AI 生成专业英文学习材料</span>
-              </a>
-              <a class="home-section__link" href="#/article">
-                <span class="home-section__link-icon" style="background:var(--article)"></span>
-                文章实验室 (Article Lab)
-                <span class="home-section__link-desc">粘贴文本 · AI 分段解读</span>
-              </a>
-              <a class="home-section__link" href="#/translation">
-                <span class="home-section__link-icon" style="background:var(--translation)"></span>
-                翻译工作室 (Translation Studio)
-                <span class="home-section__link-desc">中英互译 · 三种风格对照</span>
-              </a>
+          <!-- 主题探索 -->
+          <a class="home-hub__card home-hub__card--explore" href="#/explore">
+            <div class="home-hub__card-icon">🧭</div>
+            <div class="home-hub__card-content">
+              <div class="home-hub__card-title">主题探索</div>
+              <div class="home-hub__card-desc">AI 生成专业英文学习材料</div>
+              <div class="home-hub__card-hint" id="home-explore-hint">
+                输入任意法治主题，获取系统化学习内容
+              </div>
             </div>
-          </div>
+            <div class="home-hub__card-arrow">→</div>
+          </a>
+        </div>
 
-          <!-- 数据追踪 -->
-          <div class="home-section">
-            <div class="home-section__icon">📊</div>
-            <div class="home-section__title">数据追踪</div>
-            <div class="home-section__subtitle">生词管理 · 学习统计 · 复习进度</div>
-            <div class="home-section__links">
-              <a class="home-section__link" href="#/vocab">
-                <span class="home-section__link-icon" style="background:#fbbf24"></span>
-                生词本 (Vocabulary)
-                <span class="home-section__link-desc">词汇积累 · SRS 复习</span>
-              </a>
-              <a class="home-section__link" href="#/progress">
-                <span class="home-section__link-icon" style="background:#4ade80"></span>
-                学习进度 (Progress)
-                <span class="home-section__link-desc">学习数据统计与可视化</span>
-              </a>
-            </div>
+        <!-- 学习概览 -->
+        <div class="home-stats glass-panel" id="home-stats">
+          <div class="home-stats__item">
+            <div class="home-stats__value" id="home-stat-articles">—</div>
+            <div class="home-stats__label">已阅读文章</div>
           </div>
+          <div class="home-stats__item">
+            <div class="home-stats__value" id="home-stat-vocab">—</div>
+            <div class="home-stats__label">积累生词</div>
+          </div>
+          <div class="home-stats__item">
+            <div class="home-stats__value" id="home-stat-papers">—</div>
+            <div class="home-stats__label">收藏论文</div>
+          </div>
+        </div>
 
+        <!-- 快捷入口 -->
+        <div class="home-quick-links">
+          <a class="home-quick-link" href="#/vocab">
+            <span class="home-quick-link__icon">📖</span>
+            <span>生词本</span>
+          </a>
+          <a class="home-quick-link" href="#/research/generate">
+            <span class="home-quick-link__icon">✨</span>
+            <span>AI 文章解读</span>
+          </a>
+          <a class="home-quick-link" href="#/research/tracker">
+            <span class="home-quick-link__icon">🔍</span>
+            <span>主题追踪</span>
+          </a>
+          <a class="home-quick-link" href="#/settings/profile">
+            <span class="home-quick-link__icon">⚙️</span>
+            <span>画像设置</span>
+          </a>
         </div>
       </div>
     </section>
   `;
+}
+
+export function initHome() {
+  // Personalize greeting from stored profile
+  const user = JSON.parse(localStorage.getItem('zaiyi_user') || '{}');
+  const profile = JSON.parse(localStorage.getItem('zaiyi_profile') || '{}');
+
+  const usernameEl = document.getElementById('home-username');
+  if (usernameEl && user.username) {
+    usernameEl.textContent = user.username;
+  }
+
+  // Show profile tags
+  const tagsEl = document.getElementById('home-profile-tags');
+  if (tagsEl && profile.subject_field) {
+    const FIELD_MAP = { law: '法学', finance: '金融', cs: '计算机', medicine: '医学', engineering: '工程', humanities: '人文' };
+    const LEVEL_MAP = { cet4: 'CET-4', cet6: 'CET-6', ielts5: '雅思5-6', ielts7: '雅思7+', native: '接近母语' };
+    const tags = [];
+    if (profile.subject_field) tags.push(FIELD_MAP[profile.subject_field] || profile.subject_field);
+    if (profile.specialty) tags.push(profile.specialty);
+    if (profile.eng_level) tags.push(LEVEL_MAP[profile.eng_level] || profile.eng_level);
+    if (tags.length) {
+      tagsEl.innerHTML = tags.map(t => `<span class="hero__tag">${t}</span>`).join('');
+    }
+  }
+
+  // Load simple stats (best-effort, no blocking)
+  import('./api.js').then(({ fetchAPIGet }) => {
+    fetchAPIGet('/vocab?limit=1').then(data => {
+      const el = document.getElementById('home-stat-vocab');
+      if (el && data) el.textContent = data.total ?? (Array.isArray(data) ? data.length : '—');
+    }).catch(() => {});
+    fetchAPIGet('/papers?limit=1').then(data => {
+      const el = document.getElementById('home-stat-papers');
+      if (el && data && typeof data.total === 'number') el.textContent = data.total;
+    }).catch(() => {});
+  });
 }
 
 

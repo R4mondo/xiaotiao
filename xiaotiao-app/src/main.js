@@ -1,8 +1,8 @@
-// ZaiYi App — Main Entry with Liquid Glass Interaction System
+// ZaiYi App — Main Entry with Liquid Glass Interaction System — V2.0
 import './style.css';
 import { Router } from './router.js';
 import {
-  renderHome, renderTopicExplorer, initTopicExplorer,
+  renderHome, initHome, renderTopicExplorer, initTopicExplorer,
   renderArticleLab, initArticleLab,
   renderTranslationStudio, initTranslationStudio
 } from './pages.js';
@@ -13,29 +13,58 @@ import { renderPaperPage, initPaperPage } from './pages/paper_page.js';
 import { renderPaperDetailPage, initPaperDetailPage } from './pages/paper_detail_page.js';
 import { renderPaperReaderPage, initPaperReaderPage } from './pages/paper_reader_page.js';
 import { renderTrackerPage, initTrackerPage } from './pages/tracker_page.js';
-import { isAuthed, logout } from './auth.js';
+import { renderOnboardingPage, initOnboardingPage } from './pages/onboarding_page.js';
+import { renderResearchCenter, initResearchCenter } from './pages/research_center.js';
+import { renderProfileSettingsPage, initProfileSettingsPage } from './pages/profile_settings_page.js';
+import { isAuthed, logout, getAuthUser } from './auth.js';
 import { initGlobalWordSelector, destroyGlobalWordSelector } from './components/word_selector.js';
 import { initTaskManager } from './components/task_manager.js';
+import { initSidebar } from './components/sidebar.js';
 
 const router = new Router('app');
 
+// V2.0: Updated route guard with onboarding check
 router.setGuard((path) => {
   if (!isAuthed() && path !== '/') return '/';
-  if (isAuthed() && path === '/') return '/home';
+  if (isAuthed() && path === '/') {
+    const profile = localStorage.getItem('zaiyi_profile');
+    if (!profile || !JSON.parse(profile).onboarding_completed) return '/onboarding';
+    return '/home';
+  }
   return null;
 });
 
+// V2.0: Core routes
 router.register('/', renderLoginPage, initLoginPage);
-router.register('/home', renderHome);
-router.register('/papers', renderPaperPage, initPaperPage);
-router.register('/papers/:id', renderPaperDetailPage, initPaperDetailPage);
-router.register('/papers/:id/read', renderPaperReaderPage, initPaperReaderPage);
-router.register('/topic', renderTopicExplorer, initTopicExplorer);
-router.register('/article', renderArticleLab, initArticleLab);
-router.register('/translation', renderTranslationStudio, initTranslationStudio);
-router.register('/tracker', renderTrackerPage, initTrackerPage);
+router.register('/home', renderHome, initHome);
+router.register('/onboarding', renderOnboardingPage, initOnboardingPage);
+
+// V2.0: Research Center (merged)
+router.register('/research', renderResearchCenter, initResearchCenter);
+router.register('/research/papers', renderPaperPage, initPaperPage);
+router.register('/research/papers/:id', renderPaperDetailPage, initPaperDetailPage);
+router.register('/research/papers/:id/read', renderPaperReaderPage, initPaperReaderPage);
+router.register('/research/generate', renderArticleLab, initArticleLab);
+router.register('/research/tracker', renderTrackerPage, initTrackerPage);
+
+// V2.0: Topic Explorer (renamed route)
+router.register('/explore', renderTopicExplorer, initTopicExplorer);
+
+// V2.0: Settings
+router.register('/settings/profile', renderProfileSettingsPage, initProfileSettingsPage);
+
+// Legacy routes still functional (hidden from nav)
 router.register('/vocab', renderVocabPage, initVocabPage);
 router.register('/progress', renderProgressPage, initProgressPage);
+router.register('/translation', renderTranslationStudio, initTranslationStudio);
+
+// Legacy route redirects (backwards compatibility)
+router.register('/papers', () => { location.hash = '#/research/papers'; return '<div></div>'; });
+router.register('/papers/:id', (p) => { location.hash = `#/research/papers/${p.id}`; return '<div></div>'; });
+router.register('/papers/:id/read', (p) => { location.hash = `#/research/papers/${p.id}/read`; return '<div></div>'; });
+router.register('/topic', () => { location.hash = '#/explore'; return '<div></div>'; });
+router.register('/article', () => { location.hash = '#/research/generate'; return '<div></div>'; });
+router.register('/tracker', () => { location.hash = '#/research/tracker'; return '<div></div>'; });
 
 router.resolve();
 
@@ -65,10 +94,33 @@ function initAuthActions() {
     logoutBtn.disabled = true;
     logoutBtn.textContent = '退出中...';
     await logout();
+    localStorage.removeItem('zaiyi_profile');
     logoutBtn.textContent = '退出登录';
     logoutBtn.disabled = false;
     window.location.hash = '#/';
   });
+}
+
+// V2.0: User avatar dropdown
+function initUserMenu() {
+  const avatar = document.getElementById('btn-user-avatar');
+  const dropdown = document.getElementById('user-dropdown');
+  if (!avatar || !dropdown) return;
+
+  avatar.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('is-open');
+  });
+  document.addEventListener('click', () => {
+    dropdown.classList.remove('is-open');
+  });
+
+  // Display username
+  const user = getAuthUser();
+  const nameEl = document.getElementById('dropdown-username');
+  if (user && nameEl) {
+    nameEl.textContent = user.username || '用户';
+  }
 }
 
 // ── Theme Config System ──────────────────────
@@ -228,7 +280,9 @@ initGlobalInteractions();
 initThemeConfig();
 initSegmentedControls();
 initAuthActions();
+initUserMenu();
 initTaskManager();
+initSidebar();
 
 // ── 3. Navbar Scroll Enhancement ─────────────
 // Increases glass opacity when scrolled, creating depth.
@@ -328,22 +382,19 @@ router.resolve = function () {
       
       // Update Active Nav Link
       const hash = window.location.hash.slice(1) || '/';
+      // V2.0: Active nav link logic for 3-item navbar
       const navLinks = document.querySelectorAll('.navbar__nav .nav-link');
       navLinks.forEach(link => {
         const route = link.dataset.route;
-        const isActive = route === hash || (route !== '/' && hash.startsWith(route));
+        const isActive = route === hash || (route !== '/home' && hash.startsWith(route));
         if (isActive) {
           link.classList.add('active');
           const segmentedContainer = document.getElementById('navbar-segmented');
           if (segmentedContainer) {
             segmentedContainer.className = 'navbar__nav segmented';
-            if (hash.startsWith('/papers')) segmentedContainer.classList.add('segmented--papers');
-            if (hash.startsWith('/topic')) segmentedContainer.classList.add('segmented--topic');
-            if (hash.startsWith('/article')) segmentedContainer.classList.add('segmented--article');
-            if (hash.startsWith('/translation')) segmentedContainer.classList.add('segmented--translation');
-            if (hash.startsWith('/tracker')) segmentedContainer.classList.add('segmented--tracker');
-            if (hash.startsWith('/vocab')) segmentedContainer.classList.add('segmented--vocab');
-            if (hash.startsWith('/progress')) segmentedContainer.classList.add('segmented--progress');
+            if (hash.startsWith('/home')) segmentedContainer.classList.add('segmented--home');
+            if (hash.startsWith('/research')) segmentedContainer.classList.add('segmented--research');
+            if (hash.startsWith('/explore')) segmentedContainer.classList.add('segmented--explore');
           }
         } else {
           link.classList.remove('active');

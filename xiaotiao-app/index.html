@@ -19,49 +19,67 @@
   </div>
   <div class="bg-noise"></div>
 
-  <!-- Liquid Glass Navbar -->
+  <!-- Liquid Glass Navbar — V2.0 Simplified -->
   <nav class="navbar" id="navbar">
     <div class="navbar__inner">
       <div class="navbar__brand" onclick="location.hash='/home'">
         <div class="navbar__logo">译</div>
         <div class="navbar__title"><span>再译</span></div>
       </div>
-      <!-- Desktop Grouped Nav -->
+      <!-- V2.0: 3 core navigation items -->
       <div class="navbar__nav segmented" id="navbar-segmented">
         <div class="segmented__slider" id="navbar-slider"></div>
-        <span class="nav-group-label">学术研究</span>
-        <a href="#/papers" class="nav-link segmented__btn" data-route="/papers">
-          <span class="nav-dot" style="background:var(--research)"></span>论文库
+        <a href="#/home" class="nav-link segmented__btn" data-route="/home">
+          <span class="nav-dot" style="background:var(--topic)"></span>首页
         </a>
-        <a href="#/tracker" class="nav-link segmented__btn" data-route="/tracker">
-          <span class="nav-dot" style="background:#f472b6"></span>追踪
+        <a href="#/research" class="nav-link segmented__btn" data-route="/research">
+          <span class="nav-dot" style="background:var(--research)"></span>文献研究
         </a>
-        <span class="nav-group-sep"></span>
-        <span class="nav-group-label">语言学习</span>
-        <a href="#/topic" class="nav-link segmented__btn" data-route="/topic">
-          <span class="nav-dot" style="background:var(--topic)"></span>主题探索
-        </a>
-        <a href="#/article" class="nav-link segmented__btn" data-route="/article">
-          <span class="nav-dot" style="background:var(--article)"></span>文章实验室
-        </a>
-        <a href="#/translation" class="nav-link segmented__btn" data-route="/translation">
-          <span class="nav-dot" style="background:var(--translation)"></span>翻译工作室
-        </a>
-        <span class="nav-group-sep"></span>
-        <span class="nav-group-label">数据追踪</span>
-        <a href="#/vocab" class="nav-link segmented__btn" data-route="/vocab">
-          <span class="nav-dot" style="background:#fbbf24"></span>生词本
-        </a>
-        <a href="#/progress" class="nav-link segmented__btn" data-route="/progress">
-          <span class="nav-dot" style="background:#4ade80"></span>学习进度
+        <a href="#/explore" class="nav-link segmented__btn" data-route="/explore">
+          <span class="nav-dot" style="background:var(--article)"></span>主题探索
         </a>
       </div>
+      <!-- V2.0: Right actions — sidebar toggle + user menu -->
       <div class="navbar__actions">
-        <button class="btn btn--ghost btn--sm" id="btn-logout">退出登录</button>
+        <button class="btn btn--icon navbar__sidebar-toggle" id="btn-sidebar-toggle" title="工具面板">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+        </button>
+        <div class="navbar__user-menu" id="user-menu">
+          <button class="navbar__avatar" id="btn-user-avatar" aria-label="用户菜单">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+          </button>
+          <div class="navbar__dropdown" id="user-dropdown">
+            <div class="navbar__dropdown-user" id="dropdown-username">用户</div>
+            <div class="navbar__dropdown-divider"></div>
+            <a class="navbar__dropdown-item" href="#/settings/profile">
+              <span>⚙️</span> 画像设置
+            </a>
+            <button class="navbar__dropdown-item navbar__dropdown-item--danger" id="btn-logout">
+              <span>🚪</span> 退出登录
+            </button>
+          </div>
+        </div>
       </div>
-
     </div>
   </nav>
+
+  <!-- V2.0: Sidebar Panel (collapsible) -->
+  <aside class="sidebar-panel" id="sidebar-panel" aria-hidden="true">
+    <div class="sidebar-panel__header">
+      <div class="sidebar-panel__tabs">
+        <button class="sidebar-tab active" data-tab="vocab">📖 生词本</button>
+        <button class="sidebar-tab" data-tab="translate">🔤 翻译</button>
+        <button class="sidebar-tab" data-tab="notes">📝 笔记</button>
+      </div>
+      <button class="sidebar-panel__close" id="btn-sidebar-close" aria-label="关闭侧栏">✕</button>
+    </div>
+    <div class="sidebar-panel__content" id="sidebar-content">
+      <div class="sidebar-empty">
+        <div class="sidebar-empty__icon">📖</div>
+        <div class="sidebar-empty__text">在阅读文章时，<br>划词添加生词或翻译</div>
+      </div>
+    </div>
+  </aside>
 
   <!-- Page Content Container -->
   <main class="page" id="app"></main>
@@ -95,7 +113,7 @@
     <div class="container">
       <p class="footer__text">
         再译 © 2026 · 华东政法大学涉外法治多模态学习平台 · 
-        <a href="#">V1 MVP</a>
+        <a href="#">V2.0</a>
       </p>
     </div>
   </footer>
