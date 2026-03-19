@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from db.auth_db import init_auth_db
 from db.database import init_db, run_migrations, get_user_db_path
 from services.auth_service import extract_token, get_user_from_token
-from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback, admin, profile
+from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback, admin, profile, notes
 
 try:
     from routers import multimodal
@@ -163,6 +163,7 @@ app.include_router(auth.router)
 app.include_router(feedback.router)
 app.include_router(admin.router)
 app.include_router(profile.router)
+app.include_router(notes.router)
 if multimodal:
     app.include_router(multimodal.router)
 

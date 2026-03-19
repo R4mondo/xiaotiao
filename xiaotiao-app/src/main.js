@@ -16,6 +16,7 @@ import { renderTrackerPage, initTrackerPage } from './pages/tracker_page.js';
 import { renderOnboardingPage, initOnboardingPage } from './pages/onboarding_page.js';
 import { renderResearchCenter, initResearchCenter } from './pages/research_center.js';
 import { renderProfileSettingsPage, initProfileSettingsPage } from './pages/profile_settings_page.js';
+import { renderTranslationHistoryPage, initTranslationHistoryPage } from './pages/translation_history_page.js';
 import { isAuthed, logout, getAuthUser } from './auth.js';
 import { initGlobalWordSelector, destroyGlobalWordSelector } from './components/word_selector.js';
 import { initTaskManager } from './components/task_manager.js';
@@ -57,6 +58,7 @@ router.register('/settings/profile', renderProfileSettingsPage, initProfileSetti
 router.register('/vocab', renderVocabPage, initVocabPage);
 router.register('/progress', renderProgressPage, initProgressPage);
 router.register('/translation', renderTranslationStudio, initTranslationStudio);
+router.register('/translation/history', renderTranslationHistoryPage, initTranslationHistoryPage);
 
 // Legacy route redirects (backwards compatibility)
 router.register('/papers', () => { location.hash = '#/research/papers'; return '<div></div>'; });

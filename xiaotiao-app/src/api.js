@@ -207,3 +207,64 @@ export async function exportArticleWord(id) {
     if (!resp.ok) throw new Error('导出失败');
     return await resp.blob();
 }
+
+// ── Notes API ──────────────────────────────────
+
+export async function getNotes(module, refId) {
+    return await fetchAPIGet(`/notes?module=${module}&ref_id=${refId}`);
+}
+
+export async function getRecentNotes(module = null, limit = 20) {
+    const params = module ? `?module=${module}&limit=${limit}` : `?limit=${limit}`;
+    return await fetchAPIGet(`/notes/recent${params}`);
+}
+
+export async function createNote(module, refId, content) {
+    return await fetchAPI('/notes', { module, ref_id: refId, content }, { retries: 0 });
+}
+
+export async function updateNote(noteId, content) {
+    return await requestJSON({
+        endpoint: `/notes/${noteId}`,
+        method: 'PUT',
+        payload: { content },
+        timeoutMs: TIMEOUTS.defaultPost,
+        retries: 0,
+    });
+}
+
+export async function deleteNote(noteId) {
+    return await requestJSON({
+        endpoint: `/notes/${noteId}`,
+        method: 'DELETE',
+        timeoutMs: TIMEOUTS.defaultPost,
+        retries: 0,
+    });
+}
+
+export async function exportNotes(module = null) {
+    const params = module ? `?module=${module}` : '';
+    const url = `${API_BASE}/notes/export${params}`;
+    const resp = await authFetch(url);
+    if (!resp.ok) throw new Error('导出失败');
+    return await resp.blob();
+}
+
+// ── Translation History ──────────────────────────
+
+export async function getTranslationHistory(page = 1, size = 20) {
+    return await fetchAPIGet(`/translation/history?page=${page}&size=${size}`);
+}
+
+export async function getTranslationDetail(id) {
+    return await fetchAPIGet(`/translation/history/${id}`);
+}
+
+export async function deleteTranslationHistory(id) {
+    return await requestJSON({
+        endpoint: `/translation/history/${id}`,
+        method: 'DELETE',
+        timeoutMs: TIMEOUTS.defaultPost,
+        retries: 0,
+    });
+}
