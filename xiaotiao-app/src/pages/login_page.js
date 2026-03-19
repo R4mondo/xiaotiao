@@ -83,6 +83,7 @@ export function initLoginPage() {
       await login(username, password);
       window.showToast('登录成功', 'success');
       window.location.hash = '#/home';
+      window.location.reload();
     } catch (err) {
       window.showToast(err.message || '登录失败', 'error');
     } finally {
@@ -105,6 +106,7 @@ export function initLoginPage() {
       await register(username, password);
       window.showToast('注册成功，已自动登录', 'success');
       window.location.hash = '#/home';
+      window.location.reload();
     } catch (err) {
       window.showToast(err.message || '注册失败', 'error');
     } finally {
