@@ -52,8 +52,12 @@ def run_migrations(db_path: str = None):
     conn.row_factory = sqlite3.Row
     for filename in sql_files:
         path_sql = os.path.join(migrations_dir, filename)
-        with open(path_sql, "r", encoding="utf-8") as f:
-            script = f.read()
+        try:
+            with open(path_sql, "r", encoding="utf-8") as f:
+                script = f.read()
+        except UnicodeDecodeError:
+            with open(path_sql, "r", encoding="latin-1") as f:
+                script = f.read()
         statements = [s.strip() for s in script.split(";") if s.strip()]
         for stmt in statements:
             # Idempotent handling for ALTER TABLE ADD COLUMN
