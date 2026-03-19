@@ -1,7 +1,8 @@
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from schemas import TranslationRequest, TranslationResponse
 from services.prompt_engine import prompt_engine
+from db.auth_db import get_user_profile
 
 router = APIRouter(prefix="/translation", tags=["翻译"])
 
@@ -12,9 +13,16 @@ router = APIRouter(prefix="/translation", tags=["翻译"])
     summary="文本翻译",
     description="对输入文本进行多风格翻译，支持直译、法律表达、简明表达。",
 )
-async def run_translation(req: TranslationRequest):
+async def run_translation(req: TranslationRequest, request: Request):
     if len(req.source_text) > 5000:
         raise HTTPException(status_code=422, detail="文本超过 5000 字符限制。")
+
+    # V2.0: 读取用户画像，注入专业方向到翻译提示词
+    user_profile = {}
+    try:
+        user_profile = get_user_profile(request.state.user["id"])
+    except Exception:
+        pass
 
     try:
         response = await prompt_engine.generate(
@@ -26,6 +34,9 @@ async def run_translation(req: TranslationRequest):
             direction=req.direction,
             source_text=req.source_text,
             user_translation=req.user_translation or "",
+            # V2.0: 用户画像注入
+            user_specialty=user_profile.get("specialty", ""),
+            user_subject_field=user_profile.get("subject_field", ""),
         )
     except Exception as e:
         import logging

@@ -4,12 +4,13 @@ import uuid
 import io
 from datetime import datetime
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from schemas import TopicGenerateRequest, TopicGenerateResponse
 from services.prompt_engine import prompt_engine
 from services.srs import SRSEngine
 from db.database import get_db
+from db.auth_db import get_user_profile
 
 router = APIRouter(prefix="/topic", tags=["话题生成"])
 
@@ -20,7 +21,14 @@ router = APIRouter(prefix="/topic", tags=["话题生成"])
     summary="生成话题文章",
     description="根据指定主题、领域与难度生成学习文章，并返回新词与术语。",
 )
-async def generate_topic(req: TopicGenerateRequest, db=Depends(get_db)):
+async def generate_topic(req: TopicGenerateRequest, request: Request, db=Depends(get_db)):
+    # V2.0: 读取用户画像，注入专业方向到提示词
+    user_profile = {}
+    try:
+        user_profile = get_user_profile(request.state.user["id"])
+    except Exception:
+        pass
+
     # SRS 引擎：获取需要复习的目标词汇
     srs = SRSEngine(db)
     db_words = req.db_words
@@ -51,6 +59,10 @@ async def generate_topic(req: TopicGenerateRequest, db=Depends(get_db)):
             style_modifier=style_modifier,
             db_words=db_words,
             new_word_count=req.new_word_count,
+            # V2.0: 用户画像注入
+            user_specialty=user_profile.get("specialty", ""),
+            user_subject_field=user_profile.get("subject_field", ""),
+            user_interest_tags=user_profile.get("interest_tags", []),
         )
     except Exception as e:
         import logging

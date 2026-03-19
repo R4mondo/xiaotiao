@@ -26,10 +26,10 @@ echo "[1/6] 检查代码来源..."
 cd "$PROJECT_ROOT"
 if [ -d ".git" ]; then
     git config --global --add safe.directory "$PROJECT_ROOT" 2>/dev/null || true
-    git pull --ff-only origin main || {
-        echo "⚠️  git pull 失败，如果是 scp 部署可忽略"
+    timeout 10 git pull --ff-only origin main 2>/dev/null || {
+        echo "  ⚠️  git pull 跳过（超时或冲突），使用 rsync 上传的文件"
     }
-    echo "  ✅ Git 模式 — 代码已更新"
+    echo "  ✅ Git 模式 — 继续部署"
 else
     echo "  ✅ SCP 模式 — 跳过 git pull"
 fi
