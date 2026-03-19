@@ -883,6 +883,53 @@ def admin_dashboard(request: Request):
         ("anthropic", "Anthropic", "claude-3-7-sonnet", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "https://api.anthropic.com", True, True, True),
     ]
     api_cards = ""
+
+    # ── 蓝移API — dedicated card with dropdown model selection ──
+    lanyi_key = os.getenv("LANYI_API_KEY", "").strip()
+    lanyi_base = os.getenv("LANYI_BASE_URL", "").strip()
+    lanyi_model_val = os.getenv("LANYI_MODEL", "").strip() or "claude-sonnet-4-20250514"
+    lanyi_selected = "selected" if provider == "lanyi" else ""
+    lanyi_status = f'<div class="key-status ok">✓ 已配置</div>' if lanyi_key else f'<div class="key-status" style="color:#64748b">未配置</div>'
+    lanyi_models = [
+        ("claude-opus-4-20250514", "Claude Opus 4 (最强)"),
+        ("claude-sonnet-4-20250514", "Claude Sonnet 4 (推荐)"),
+        ("claude-haiku-4-5-20250514", "Claude Haiku 4.5 (快速)"),
+        ("claude-3-7-sonnet-20250219", "Claude 3.7 Sonnet"),
+        ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet"),
+        ("claude-3-5-haiku-20241022", "Claude 3.5 Haiku"),
+        ("gpt-4o", "GPT-4o"),
+        ("gpt-4o-mini", "GPT-4o Mini (便宜)"),
+        ("gpt-4-turbo", "GPT-4 Turbo"),
+        ("gemini-2.5-flash", "Gemini 2.5 Flash"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash"),
+        ("deepseek-chat", "DeepSeek Chat"),
+    ]
+    lanyi_model_options = ""
+    for mid, mname in lanyi_models:
+        sel = 'selected' if mid == lanyi_model_val else ''
+        lanyi_model_options += f'<option value="{mid}" {sel}>{mname}</option>'
+
+    api_cards += f"""
+    <div class="api-card {lanyi_selected}" data-provider="lanyi" style="border:2px solid rgba(99,102,241,.6);grid-column:1/-1;">
+        <div class="provider-name" style="font-size:1.1rem;">🚀 蓝移API (中转代理)</div>
+        <div class="provider-models" style="color:#a5b4fc">支持 Claude / GPT / Gemini / DeepSeek 全系列模型</div>
+        <div class="caps">
+            <span class="cap y">JSON ✓</span>
+            <span class="cap y">Stream ✓</span>
+            <span class="cap y">Vision ✓</span>
+        </div>
+        <input class="api-input" type="password" id="key-lanyi" placeholder="蓝移API Key" value="{html_mod.escape(lanyi_key)}" autocomplete="off">
+        <div style="font-size:.7rem;color:#94a3b8;margin:4px 0 2px">选择模型：</div>
+        <select class="api-input" id="model-lanyi" style="background:#1e293b;color:#e2e8f0;border:1px solid rgba(99,102,241,.3);border-radius:6px;padding:6px 8px;font-size:.8rem;cursor:pointer">
+            {lanyi_model_options}
+        </select>
+        <input class="api-input" type="text" id="baseurl-lanyi" placeholder="API Base URL（留空=默认）" value="{html_mod.escape(lanyi_base)}" autocomplete="off" style="font-size:.75rem;color:#94a3b8">
+        <div style="font-size:.65rem;color:#475569;margin-top:2px">默认: http://1.95.142.151:3000/v1</div>
+        {lanyi_status}
+    </div>
+    """
+
+    # ── Other providers ──
     for pid, pname, default_model, key_env, base_url_env, default_base_url, has_json, has_stream, has_vision in providers_info:
         key_val = os.getenv(key_env, "").strip()
         base_url_val = os.getenv(base_url_env, "").strip()
@@ -1307,7 +1354,7 @@ def admin_dashboard(request: Request):
         const provider = selected ? selected.dataset.provider : '';
 
         const config = {{}};
-        ['gemini', 'openai', 'qwen', 'anthropic'].forEach(p => {{
+        ['lanyi', 'gemini', 'openai', 'qwen', 'anthropic'].forEach(p => {{
             const keyEl = document.getElementById('key-' + p);
             const modelEl = document.getElementById('model-' + p);
             const baseUrlEl = document.getElementById('baseurl-' + p);
@@ -1638,7 +1685,7 @@ async def save_config(request: Request):
     deletes = []  # keys to remove from .env
     if body.get("provider"):
         updates["LLM_PROVIDER"] = body["provider"]
-    for pid in ("gemini", "openai", "qwen", "anthropic"):
+    for pid in ("lanyi", "gemini", "openai", "qwen", "anthropic"):
         key_field = f"{pid}_key"
         model_field = f"{pid}_model"
         base_url_field = f"{pid}_base_url"
