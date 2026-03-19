@@ -44,7 +44,7 @@ export class Router {
       }
     }
 
-    document.body.classList.toggle('auth-view', normalized === '/');
+    document.body.classList.toggle('auth-view', normalized === '/' || normalized === '/landing' || normalized === '/login');
 
     // Page-level cleanup hooks (if any)
     const cleanupFns = [

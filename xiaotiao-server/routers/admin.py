@@ -1330,6 +1330,13 @@ def admin_dashboard(request: Request):
             <div class="subtitle">查看和管理所有数据库表的内容。</div>
             <a href="/admin/database" style="display:inline-block;padding:8px 20px;background:rgba(99,102,241,.15);color:#a5b4fc;border-radius:8px;text-decoration:none;font-size:.85rem;margin-top:8px;transition:background .2s" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.15)'">📋 打开数据库浏览器 →</a>
         </div>
+
+        <!-- Panel 5: Team Management -->
+        <div class="section">
+            <h2>👥 团队成员管理</h2>
+            <div class="subtitle">管理首页展示的团队成员信息，审核后自动同步到公开首页。</div>
+            <a href="/admin/team" style="display:inline-block;padding:8px 20px;background:rgba(99,102,241,.15);color:#a5b4fc;border-radius:8px;text-decoration:none;font-size:.85rem;margin-top:8px;transition:background .2s" onmouseover="this.style.background='rgba(99,102,241,.25)'" onmouseout="this.style.background='rgba(99,102,241,.15)'">👥 打开团队管理 →</a>
+        </div>
     </div>
 
     <script>

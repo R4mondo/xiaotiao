@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 from db.auth_db import init_auth_db
 from db.database import init_db, run_migrations, get_user_db_path
 from services.auth_service import extract_token, get_user_from_token
-from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback, admin, profile, notes, ai_test
+from routers import auth, topic, article, translation, vocab, research, papers, tracker, collections, feedback, admin, profile, notes, ai_test, team
 
 try:
     from routers import multimodal
@@ -94,6 +94,7 @@ PUBLIC_PATHS = {
     "/health",
     "/auth/login",
     "/auth/register",
+    "/api/team-members",
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -105,7 +106,7 @@ async def auth_guard(request: Request, call_next):
     path = request.url.path
     if request.method == "OPTIONS":
         return await call_next(request)
-    if path in PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/admin") or path.startswith("/api/ai-test"):
+    if path in PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/admin") or path.startswith("/api/ai-test") or path.startswith("/uploads"):
         return await call_next(request)
     token = extract_token(request)
     user = get_user_from_token(token)
@@ -166,8 +167,15 @@ app.include_router(admin.router)
 app.include_router(profile.router)
 app.include_router(notes.router)
 app.include_router(ai_test.router)
+app.include_router(team.router)
 if multimodal:
     app.include_router(multimodal.router)
+
+# Serve uploaded team avatars as static files
+from fastapi.staticfiles import StaticFiles
+uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn

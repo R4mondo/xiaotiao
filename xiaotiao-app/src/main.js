@@ -7,6 +7,7 @@ import {
   renderTranslationStudio, initTranslationStudio
 } from './pages.js';
 import { renderLoginPage, initLoginPage } from './pages/login_page.js';
+import { renderLandingPage, initLandingPage } from './pages/landing_page.js';
 import { renderVocabPage, initVocabPage } from './vocab_page.js';
 import { renderProgressPage, initProgressPage } from './progress_page.js';
 import { renderPaperPage, initPaperPage } from './pages/paper_page.js';
@@ -26,8 +27,10 @@ const router = new Router('app');
 
 // V2.0: Updated route guard with onboarding check
 router.setGuard((path) => {
-  if (!isAuthed() && path !== '/') return '/';
-  if (isAuthed() && path === '/') {
+  // Public pages accessible without login
+  const publicPaths = ['/', '/landing', '/login'];
+  if (!isAuthed() && !publicPaths.includes(path)) return '/landing';
+  if (isAuthed() && (path === '/' || path === '/landing' || path === '/login')) {
     const profile = localStorage.getItem('zaiyi_profile');
     if (!profile || !JSON.parse(profile).onboarding_completed) return '/onboarding';
     return '/home';
@@ -36,7 +39,9 @@ router.setGuard((path) => {
 });
 
 // V2.0: Core routes
-router.register('/', renderLoginPage, initLoginPage);
+router.register('/', renderLandingPage, initLandingPage);
+router.register('/landing', renderLandingPage, initLandingPage);
+router.register('/login', renderLoginPage, initLoginPage);
 router.register('/home', renderHome, initHome);
 router.register('/onboarding', renderOnboardingPage, initOnboardingPage);
 
