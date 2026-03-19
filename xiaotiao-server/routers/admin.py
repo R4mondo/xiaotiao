@@ -911,23 +911,310 @@ def admin_dashboard(request: Request):
         </div>
         """
 
-    # ── Template list ──
-    templates = []
-    if PROMPTS_DIR.exists():
-        for fp in sorted(PROMPTS_DIR.glob("*.j2")):
-            size = fp.stat().st_size
-            feat = _TPL_FEATURE_MAP.get(fp.name)
-            feat_label = f'<span class="tpl-feature">→ {feat["frontend"]} · {feat["name"]}</span>' if feat else ""
-            templates.append(
-                f'<li class="tpl-item">'
-                f'<div><span class="name">{fp.name}</span>{feat_label}'
-                f'<span class="size"> — {size} bytes</span></div>'
-                f'<a class="edit-btn" href="/admin/prompts/{fp.name}">编辑</a>'
-                f'</li>'
-            )
+    # ── Template list — 3-layer tree view ──
+    def _tpl_size(name):
+        p = PROMPTS_DIR / name
+        return p.stat().st_size if p.exists() else 0
 
-    tpl_html = "\n".join(templates) if templates else '<li class="tpl-item"><span class="name" style="color:#64748b">未找到模板文件</span></li>'
+    # Feature templates with their user input fields
+    FEATURE_TEMPLATES = [
+        {
+            "file": "topic_generate.j2",
+            "name": "📝 文章生成",
+            "frontend": "话题探索 · 文章生成",
+            "user_inputs": ["话题/标签", "文章长度", "难度等级", "文章风格", "DB 复习词", "新词数量"],
+        },
+        {
+            "file": "translation.j2",
+            "name": "🔤 翻译",
+            "frontend": "翻译工作室 · 翻译练习",
+            "user_inputs": ["原文文本", "翻译方向", "用户自译文本"],
+        },
+        {
+            "file": "article_analyze.j2",
+            "name": "🔍 文章解读",
+            "frontend": "文章实验室 · 文章解读分析",
+            "user_inputs": ["待分析文本", "分析模式", "RAG 检索上下文"],
+        },
+        {
+            "file": "multimodal.j2",
+            "name": "📷 多模态",
+            "frontend": "多模态 · 多模态词汇提取",
+            "user_inputs": ["上传图片/截图", "识别模式"],
+        },
+    ]
 
+    feature_tree_items = ""
+    for ft in FEATURE_TEMPLATES:
+        size = _tpl_size(ft["file"])
+        input_tags = "".join(f'<span class="prompt-input-tag">📥 {inp}</span>' for inp in ft["user_inputs"])
+        feature_tree_items += f'''
+            <div class="prompt-tree-leaf">
+                <div class="prompt-tree-branch"></div>
+                <div class="prompt-tree-card layer3">
+                    <div class="prompt-tree-card-header">
+                        <div>
+                            <span class="prompt-layer-badge l3">第 3 层</span>
+                            <span class="prompt-tree-name">{ft["name"]}</span>
+                        </div>
+                        <a class="edit-btn" href="/admin/prompts/{ft["file"]}">编辑</a>
+                    </div>
+                    <div class="prompt-tree-file">📄 {ft["file"]} <span class="size">— {size} bytes</span></div>
+                    <div class="prompt-tree-frontend">🖥️ {ft["frontend"]}</div>
+                    <div class="prompt-tree-inputs-title">用户输入的功能性参数：</div>
+                    <div class="prompt-tree-inputs">{input_tags}</div>
+                    <div class="prompt-assembly">
+                        <div class="prompt-assembly-title">💡 最终提示词组装</div>
+                        <div class="prompt-assembly-flow">
+                            <span class="pa-box pa-l1">统摄层</span>
+                            <span class="pa-arrow">+</span>
+                            <span class="pa-box pa-l2">全局层</span>
+                            <span class="pa-arrow">+</span>
+                            <span class="pa-box pa-l3">功能层 系统部分</span>
+                            <span class="pa-arrow">→</span>
+                            <span class="pa-box pa-sys">System Prompt</span>
+                        </div>
+                        <div class="prompt-assembly-flow" style="margin-top:4px;">
+                            <span class="pa-box pa-l3">功能层 用户部分</span>
+                            <span class="pa-arrow">→</span>
+                            <span class="pa-box pa-usr">User Prompt</span>
+                        </div>
+                    </div>
+                </div>
+            </div>'''
+
+    body_tpl = f"""
+        <!-- Panel 3: Prompt Templates — Tree View -->
+        <div class="section">
+            <h2>📝 提示词三层架构</h2>
+            <div class="subtitle">树形展示三层提示词结构。每层都可由管理员编辑模版，用户输入的信息会自动填充到模版变量中。</div>
+
+            <style>
+            .prompt-tree {{
+                position:relative;
+                padding-left:0;
+            }}
+            .prompt-tree-root {{
+                position:relative;
+                padding-left:32px;
+            }}
+            .prompt-tree-root::before {{
+                content:'';
+                position:absolute;
+                left:16px;
+                top:42px;
+                bottom:0;
+                width:2px;
+                background:linear-gradient(to bottom, #a78bfa, #6366f1, #3b82f6);
+            }}
+            .prompt-tree-card {{
+                background:rgba(255,255,255,.04);
+                border:1px solid rgba(255,255,255,.08);
+                border-radius:10px;
+                padding:14px 18px;
+                margin-bottom:12px;
+                transition:all .2s;
+            }}
+            .prompt-tree-card:hover {{
+                background:rgba(255,255,255,.07);
+                border-color:rgba(255,255,255,.15);
+            }}
+            .prompt-tree-card.layer1 {{
+                border-left:3px solid #a78bfa;
+                background:rgba(167,139,250,.06);
+            }}
+            .prompt-tree-card.layer2 {{
+                border-left:3px solid #6366f1;
+                background:rgba(99,102,241,.06);
+            }}
+            .prompt-tree-card.layer3 {{
+                border-left:3px solid #3b82f6;
+                background:rgba(59,130,246,.06);
+            }}
+            .prompt-tree-card-header {{
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                margin-bottom:6px;
+            }}
+            .prompt-layer-badge {{
+                display:inline-block;
+                padding:2px 8px;
+                border-radius:4px;
+                font-size:.7rem;
+                font-weight:700;
+                margin-right:6px;
+            }}
+            .prompt-layer-badge.l1 {{ background:rgba(167,139,250,.2);color:#a78bfa; }}
+            .prompt-layer-badge.l2 {{ background:rgba(99,102,241,.2);color:#818cf8; }}
+            .prompt-layer-badge.l3 {{ background:rgba(59,130,246,.2);color:#60a5fa; }}
+            .prompt-tree-name {{
+                font-weight:700;
+                color:#e2e8f0;
+                font-size:.95rem;
+            }}
+            .prompt-tree-file {{
+                font-size:.78rem;
+                color:#94a3b8;
+                margin-bottom:4px;
+            }}
+            .prompt-tree-file .size {{ color:#64748b; }}
+            .prompt-tree-desc {{
+                font-size:.8rem;
+                color:#94a3b8;
+                margin-bottom:6px;
+            }}
+            .prompt-tree-frontend {{
+                font-size:.75rem;
+                color:#64748b;
+                margin-bottom:8px;
+            }}
+            .prompt-tree-inputs-title {{
+                font-size:.72rem;
+                color:#818cf8;
+                font-weight:600;
+                margin-bottom:4px;
+            }}
+            .prompt-tree-inputs {{
+                display:flex;
+                flex-wrap:wrap;
+                gap:4px;
+                margin-bottom:8px;
+            }}
+            .prompt-input-tag {{
+                display:inline-block;
+                padding:2px 8px;
+                background:rgba(99,102,241,.1);
+                border:1px solid rgba(99,102,241,.2);
+                border-radius:4px;
+                font-size:.68rem;
+                color:#a5b4fc;
+            }}
+            .prompt-global-input-tag {{
+                display:inline-block;
+                padding:2px 8px;
+                background:rgba(167,139,250,.1);
+                border:1px solid rgba(167,139,250,.2);
+                border-radius:4px;
+                font-size:.68rem;
+                color:#c4b5fd;
+            }}
+            .prompt-tree-leaf {{
+                position:relative;
+                padding-left:32px;
+                margin-bottom:0;
+            }}
+            .prompt-tree-branch {{
+                position:absolute;
+                left:-16px;
+                top:22px;
+                width:16px;
+                height:2px;
+                background:#3b82f6;
+            }}
+            .prompt-tree-connector {{
+                position:relative;
+                margin-left:16px;
+                padding-left:16px;
+            }}
+            .prompt-tree-connector::before {{
+                content:'';
+                position:absolute;
+                left:0;
+                top:0;
+                bottom:0;
+                width:2px;
+                background:linear-gradient(to bottom, #6366f1, #3b82f6);
+            }}
+            .prompt-assembly {{
+                background:rgba(0,0,0,.15);
+                border-radius:6px;
+                padding:8px 12px;
+                margin-top:4px;
+            }}
+            .prompt-assembly-title {{
+                font-size:.7rem;
+                color:#94a3b8;
+                margin-bottom:4px;
+                font-weight:600;
+            }}
+            .prompt-assembly-flow {{
+                display:flex;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:4px;
+                font-size:.68rem;
+            }}
+            .pa-box {{
+                padding:2px 8px;
+                border-radius:4px;
+                font-weight:600;
+            }}
+            .pa-l1 {{ background:rgba(167,139,250,.15);color:#c4b5fd; }}
+            .pa-l2 {{ background:rgba(99,102,241,.15);color:#a5b4fc; }}
+            .pa-l3 {{ background:rgba(59,130,246,.15);color:#93c5fd; }}
+            .pa-sys {{ background:rgba(74,222,128,.15);color:#4ade80; }}
+            .pa-usr {{ background:rgba(251,191,36,.15);color:#fbbf24; }}
+            .pa-arrow {{ color:#64748b;font-weight:700; }}
+            </style>
+
+            <div class="prompt-tree">
+                <!-- Layer 1: Meta System -->
+                <div class="prompt-tree-root">
+                    <div class="prompt-tree-card layer1">
+                        <div class="prompt-tree-card-header">
+                            <div>
+                                <span class="prompt-layer-badge l1">第 1 层</span>
+                                <span class="prompt-tree-name">🏛️ 统摄性提示词 — AI 行为总纲</span>
+                            </div>
+                            <a class="edit-btn" href="/admin/prompts/meta_system.j2">编辑</a>
+                        </div>
+                        <div class="prompt-tree-file">📄 meta_system.j2 <span class="size">— {_tpl_size('meta_system.j2')} bytes</span></div>
+                        <div class="prompt-tree-desc">控制所有 AI 功能的输出格式、严谨性、安全性和一致性。修改此文件影响所有功能。</div>
+                        <div class="prompt-tree-inputs-title">管理员可调整：</div>
+                        <div class="prompt-tree-inputs">
+                            <span class="prompt-input-tag">📋 输出格式规范</span>
+                            <span class="prompt-input-tag">🎯 准确性要求</span>
+                            <span class="prompt-input-tag">🛡️ 安全性约束</span>
+                            <span class="prompt-input-tag">🌐 语言质量标准</span>
+                            <span class="prompt-input-tag">📐 一致性规则</span>
+                        </div>
+                    </div>
+
+                    <!-- Layer 2: Global Context -->
+                    <div class="prompt-tree-card layer2">
+                        <div class="prompt-tree-card-header">
+                            <div>
+                                <span class="prompt-layer-badge l2">第 2 层</span>
+                                <span class="prompt-tree-name">🌍 全局性提示词 — 用户画像上下文</span>
+                            </div>
+                            <a class="edit-btn" href="/admin/prompts/global_context.j2">编辑</a>
+                        </div>
+                        <div class="prompt-tree-file">📄 global_context.j2 <span class="size">— {_tpl_size('global_context.j2')} bytes</span></div>
+                        <div class="prompt-tree-desc">将用户的全局设置（画像）注入到所有 AI 功能中。用户修改画像后，所有功能自动同步。</div>
+                        <div class="prompt-tree-inputs-title">用户画像数据（自动从设置页读取）：</div>
+                        <div class="prompt-tree-inputs">
+                            <span class="prompt-global-input-tag">🎓 备考目标 (CET4/CET6/IELTS/TOEFL...)</span>
+                            <span class="prompt-global-input-tag">📚 学科领域</span>
+                            <span class="prompt-global-input-tag">🔬 细分专业方向</span>
+                            <span class="prompt-global-input-tag">💡 兴趣标签</span>
+                            <span class="prompt-global-input-tag">📊 英语水平</span>
+                        </div>
+                    </div>
+
+                    <!-- Layer 3: Feature Templates -->
+                    <div style="margin-top:4px;margin-bottom:8px;">
+                        <span class="prompt-layer-badge l3">第 3 层</span>
+                        <span style="color:#94a3b8;font-size:.82rem;">功能性提示词 — 每个功能各自的参数和逻辑</span>
+                    </div>
+                    <div class="prompt-tree-connector">
+                        {feature_tree_items}
+                    </div>
+                </div>
+            </div>
+        </div>"""
+
+    # Inject into body between API config and database section
     body = f"""
     <div class="dash">
         <div class="dash-header">
@@ -960,7 +1247,7 @@ def admin_dashboard(request: Request):
             <div class="stat-card">
                 <div class="stat-label">AI 功能</div>
                 <div class="stat-value">{len(AI_FEATURES)}</div>
-                <div class="stat-sub">{f'<span class="ok">{active_count} 正常</span>' if active_count else ''}{f' <span class="err">{error_count} 异常</span>' if error_count else ''}{f' <span style="color:#64748b">{untested_count} 未测试</span>' if untested_count else ''}</div>
+                <div class="stat-sub">{'<span class="ok">' + str(active_count) + ' 正常</span>' if active_count else ''}{' <span class="err">' + str(error_count) + ' 异常</span>' if error_count else ''}{' <span style="color:#64748b">' + str(untested_count) + ' 未测试</span>' if untested_count else ''}</div>
             </div>
         </div>
 
@@ -990,14 +1277,7 @@ def admin_dashboard(request: Request):
             </div>
         </div>
 
-        <!-- Panel 3: Prompt Templates -->
-        <div class="section">
-            <h2>📝 提示词模板</h2>
-            <div class="subtitle">点击「编辑」可修改 AI 的行为逻辑。每个模板旁标注了它驱动的前端功能。</div>
-            <ul class="tpl-list">
-                {tpl_html}
-            </ul>
-        </div>
+        {body_tpl}
 
         <!-- Panel 4: Database Viewer -->
         <div class="section">
