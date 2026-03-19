@@ -3966,6 +3966,24 @@ textarea.input-field {
 .glass-table tbody tr:hover {
   background: var(--glass-bg-hover);
 }
+/* Vocab table high-contrast text overrides */
+.glass-table td {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+.glass-table th {
+  color: var(--text-secondary);
+}
+.vocab-shell .glass-table td span[style*="text-muted"],
+.vocab-shell .glass-table td span[style*="muted"] {
+  color: var(--text-secondary) !important;
+}
+.vocab-sidebar__title {
+  color: var(--text-secondary);
+}
+.vocab-stat-card__label {
+  color: var(--text-secondary);
+}
 
 /* Avatar */
 .avatar {

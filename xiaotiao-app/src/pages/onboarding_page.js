@@ -81,11 +81,50 @@ export function initOnboardingPage() {
   const backBtn = document.getElementById('onboarding-back');
   const skipBtn = document.getElementById('onboarding-skip');
 
+  // Fallback config in case API is unreachable
+  const FALLBACK_CONFIG = {
+    exam_types: [
+      { id: 'kaoyan', label: '考研英语' },
+      { id: 'cet4', label: '四级' },
+      { id: 'cet6', label: '六级' },
+      { id: 'ielts', label: '雅思' },
+      { id: 'toefl', label: '托福' },
+      { id: 'bar_exam', label: '法律英语/法考' },
+      { id: 'other', label: '其他' },
+    ],
+    subject_fields: [
+      { id: 'law', label: '法学' },
+      { id: 'finance', label: '金融' },
+      { id: 'cs', label: '计算机' },
+      { id: 'medicine', label: '医学' },
+      { id: 'engineering', label: '工程' },
+      { id: 'humanities', label: '人文' },
+      { id: 'other', label: '其他' },
+    ],
+    eng_levels: [
+      { id: 'cet4', label: 'CET-4', description: '大学英语四级水平' },
+      { id: 'cet6', label: 'CET-6', description: '大学英语六级水平' },
+      { id: 'ielts5', label: '雅思 5-6 分', description: '中级英语水平' },
+      { id: 'ielts7', label: '雅思 7+ 分', description: '高级英语水平' },
+      { id: 'native', label: '接近母语', description: '可无障碍阅读学术文献' },
+    ],
+    interest_tags: [
+      '区块链监管', '跨境金融', '国际仲裁', '知识产权',
+      '数据隐私', '人工智能法律', '环境法', '国际贸易',
+      '公司治理', '反垄断', '税法', '海商法',
+      '劳动法', '消费者保护', '刑事司法', '人权法',
+    ],
+  };
+
   async function loadConfig() {
     try {
       fieldConfig = await fetchAPIGet('/config/fields');
+      // Validate response has data
+      if (!fieldConfig.exam_types || !fieldConfig.exam_types.length) {
+        fieldConfig = FALLBACK_CONFIG;
+      }
     } catch (e) {
-      fieldConfig = { exam_types: [], subject_fields: [], eng_levels: [], interest_tags: [] };
+      fieldConfig = FALLBACK_CONFIG;
     }
     renderStep(0);
   }

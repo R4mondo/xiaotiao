@@ -438,16 +438,16 @@ async function loadVocabList() {
             tbody.innerHTML = data.items.map(item => `
                 <tr style="border-bottom:1px solid rgba(0,0,0,0.04);transition:background 0.2s;">
                     <td style="padding:14px 20px;">
-                        <span style="font-weight:500;font-size:1.05rem;color:var(--text-primary);">${escapeHtml(item.word)}</span>
-                        <span style="color:var(--text-muted);font-size:0.8rem;margin-left:6px;">${item.part_of_speech || ''}</span>
+                        <span style="font-weight:600;font-size:1.05rem;color:var(--text-primary);">${escapeHtml(item.word)}</span>
+                        <span style="color:var(--text-secondary);font-size:0.8rem;margin-left:6px;">${item.part_of_speech || ''}</span>
                         ${item.is_easily_forgotten ? '<span style="margin-left:6px;font-size:0.7rem;padding:2px 6px;border-radius:6px;background:rgba(239,68,68,0.15);color:#ef4444;font-weight:600;">易忘</span>' : ''}
                         ${item.duplicate_count > 0 ? `<span style="margin-left:4px;font-size:0.65rem;color:var(--text-muted);">×${item.duplicate_count + 1}</span>` : ''}
                     </td>
-                    <td style="padding:14px 20px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <td style="padding:14px 20px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-primary);">
                         ${item.definition_zh || '-'}
                     </td>
                     <td style="padding:14px 20px;">
-                        <span style="background:var(--glass-bg-input);padding:3px 8px;border-radius:10px;font-size:0.75rem;color:var(--text-muted);">
+                        <span style="background:var(--glass-bg-input);padding:3px 8px;border-radius:10px;font-size:0.75rem;color:var(--text-secondary);">
                             ${item.domain}
                         </span>
                     </td>
