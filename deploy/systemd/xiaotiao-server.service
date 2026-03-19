@@ -15,15 +15,15 @@ After=network.target
 
 [Service]
 Type=simple
-User=deploy
-Group=deploy
+User=root
+Group=root
 
-WorkingDirectory=/home/deploy/xiaotiao-main/xiaotiao-server
-EnvironmentFile=/home/deploy/xiaotiao-main/xiaotiao-server/.env
+WorkingDirectory=/root/xiaotiao-main/xiaotiao-server
+EnvironmentFile=/root/xiaotiao-main/xiaotiao-server/.env
 
 # 使用 uvicorn 生产模式启动
 # 注意：SQLite 不支持多进程并发写入，所以 workers=1
-ExecStart=/home/deploy/xiaotiao-main/xiaotiao-server/.venv/bin/python -m uvicorn main:app \
+ExecStart=/root/xiaotiao-main/xiaotiao-server/.venv/bin/python -m uvicorn main:app \
     --host 127.0.0.1 \
     --port 3000 \
     --workers 1 \
@@ -32,12 +32,6 @@ ExecStart=/home/deploy/xiaotiao-main/xiaotiao-server/.venv/bin/python -m uvicorn
 # 崩溃自动重启
 Restart=on-failure
 RestartSec=5
-
-# 安全限制
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/home/deploy/xiaotiao-main/xiaotiao-server/db
-ReadWritePaths=/home/deploy/xiaotiao-main/xiaotiao-server/uploads
 
 # 日志交给 journald
 StandardOutput=journal
