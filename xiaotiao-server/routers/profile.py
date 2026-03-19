@@ -12,8 +12,8 @@ router = APIRouter(tags=["用户画像"])
 
 class ProfileUpdate(BaseModel):
     exam_type: Optional[str] = None
-    subject_field: Optional[str] = None
-    specialty: Optional[str] = None
+    subject_field: Optional[List[str]] = None
+    specialty: Optional[List[str]] = None
     eng_level: Optional[str] = None
     interest_tags: Optional[List[str]] = None
     onboarding_completed: Optional[bool] = None

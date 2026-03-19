@@ -1,4 +1,4 @@
-// V2.0 Profile Settings Page — 画像设置中心
+// V2.0 Profile Settings Page — 画像设置中心 (Multi-Select Support)
 import { fetchAPIGet, fetchAPI } from '../api.js';
 
 export function renderProfileSettingsPage() {
@@ -37,6 +37,13 @@ export function initProfileSettingsPage() {
       ]);
       profile = profileRes.profile || {};
       fieldConfig = configRes;
+      // Migrate legacy string values to arrays
+      if (profile.subject_field && typeof profile.subject_field === 'string') {
+        profile.subject_field = [profile.subject_field];
+      }
+      if (profile.specialty && typeof profile.specialty === 'string') {
+        profile.specialty = [profile.specialty];
+      }
       render();
     } catch (e) {
       container.innerHTML = `<div class="glass-panel" style="padding:24px;"><div class="result-empty"><div class="result-empty__icon">❌</div><div class="result-empty__text">加载失败：${e.message}</div></div></div>`;
@@ -45,9 +52,21 @@ export function initProfileSettingsPage() {
 
   function render() {
     const examLabel = findLabel(fieldConfig.exam_types, profile.exam_type);
-    const fieldLabel = findLabel(fieldConfig.subject_fields, profile.subject_field);
+    const selectedFields = Array.isArray(profile.subject_field) ? profile.subject_field : (profile.subject_field ? [profile.subject_field] : []);
+    const selectedSpecs = Array.isArray(profile.specialty) ? profile.specialty : (profile.specialty ? [profile.specialty] : []);
+    const fieldLabels = selectedFields.map(id => findLabel(fieldConfig.subject_fields, id) || id).join('、') || '未设置';
+    const specLabels = selectedSpecs.map(id => id).join('、') || '未设置';
     const levelLabel = findLabel(fieldConfig.eng_levels, profile.eng_level);
     const tags = (profile.interest_tags || []).join(', ') || '未设置';
+
+    // Collect all specialties for selected fields
+    const allSpecialties = [];
+    selectedFields.forEach(fid => {
+      const specs = fieldConfig._specialtiesCache?.[fid] || [];
+      specs.forEach(s => {
+        if (!allSpecialties.find(x => x.id === s.id)) allSpecialties.push(s);
+      });
+    });
 
     container.innerHTML = `
       <div class="glass-panel profile-card" style="padding: 24px;">
@@ -63,22 +82,21 @@ export function initProfileSettingsPage() {
         </div>
 
         <div class="profile-card__section">
-          <div class="profile-card__label">📚 学科领域</div>
-          <div class="profile-card__value">${fieldLabel || '未设置'}</div>
-          <select class="form-select profile-select" id="ps-subject-field">
-            <option value="">请选择...</option>
-            ${(fieldConfig.subject_fields || []).map(t =>
-              `<option value="${t.id}" ${profile.subject_field === t.id ? 'selected' : ''}>${t.label}</option>`
+          <div class="profile-card__label">📚 学科领域 <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal">（可多选）</span></div>
+          <div class="profile-card__value">${fieldLabels}</div>
+          <div class="profile-tags" id="ps-subject-fields">
+            ${(fieldConfig.subject_fields || []).map(f =>
+              `<button class="onboarding__tag ${selectedFields.includes(f.id) ? 'selected' : ''}" data-field="${f.id}">${f.label}</button>`
             ).join('')}
-          </select>
+          </div>
         </div>
 
         <div class="profile-card__section">
-          <div class="profile-card__label">🔬 细分专业</div>
-          <div class="profile-card__value">${profile.specialty || '未设置'}</div>
-          <select class="form-select profile-select" id="ps-specialty">
-            <option value="">加载中...</option>
-          </select>
+          <div class="profile-card__label">🔬 细分专业 <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal">（可多选，根据学科自动加载）</span></div>
+          <div class="profile-card__value">${specLabels}</div>
+          <div class="profile-tags" id="ps-specialties">
+            <span style="color:var(--text-muted);font-size:.8rem">请先选择学科领域...</span>
+          </div>
         </div>
 
         <div class="profile-card__section">
@@ -108,34 +126,72 @@ export function initProfileSettingsPage() {
       </div>
     `;
 
-    // Load specialties
-    loadSpecialties(profile.subject_field || 'law');
+    // Load specialties for selected fields
+    loadSpecialtiesForFields(selectedFields);
 
-    // Bind events
-    document.getElementById('ps-subject-field').addEventListener('change', (e) => {
-      loadSpecialties(e.target.value);
+    // Bind subject field tag click (multi-select)
+    document.querySelectorAll('#ps-subject-fields .onboarding__tag').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('selected');
+        const newFields = [];
+        document.querySelectorAll('#ps-subject-fields .onboarding__tag.selected').forEach(b => {
+          newFields.push(b.dataset.field);
+        });
+        loadSpecialtiesForFields(newFields);
+      });
     });
 
     document.getElementById('ps-save').addEventListener('click', saveProfile);
 
-    // Tag toggle
+    // Tag toggle for interest tags
     document.querySelectorAll('#ps-tags .onboarding__tag').forEach(btn => {
       btn.addEventListener('click', () => btn.classList.toggle('selected'));
     });
   }
 
-  async function loadSpecialties(field) {
-    const select = document.getElementById('ps-specialty');
-    if (!select) return;
-    try {
-      const data = await fetchAPIGet(`/config/specialties?field=${field}`);
-      select.innerHTML = `<option value="">请选择...</option>` +
-        (data.specialties || []).map(s =>
-          `<option value="${s.id}" ${profile.specialty === s.id ? 'selected' : ''}>${s.label}</option>`
-        ).join('');
-    } catch (_e) {
-      select.innerHTML = '<option value="">暂无数据</option>';
+  async function loadSpecialtiesForFields(fields) {
+    const specContainer = document.getElementById('ps-specialties');
+    if (!specContainer) return;
+    if (!fields || fields.length === 0) {
+      specContainer.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem">请先选择学科领域...</span>';
+      return;
     }
+
+    // Initialize cache
+    if (!fieldConfig._specialtiesCache) fieldConfig._specialtiesCache = {};
+
+    // Load specialties for all selected fields
+    const allSpecs = [];
+    for (const field of fields) {
+      if (!fieldConfig._specialtiesCache[field]) {
+        try {
+          const data = await fetchAPIGet(`/config/specialties?field=${field}`);
+          fieldConfig._specialtiesCache[field] = data.specialties || [];
+        } catch (_e) {
+          fieldConfig._specialtiesCache[field] = [];
+        }
+      }
+      const fieldLabel = findLabel(fieldConfig.subject_fields, field) || field;
+      fieldConfig._specialtiesCache[field].forEach(s => {
+        allSpecs.push({ ...s, fieldLabel });
+      });
+    }
+
+    const selectedSpecs = Array.isArray(profile.specialty) ? profile.specialty : (profile.specialty ? [profile.specialty] : []);
+
+    if (allSpecs.length === 0) {
+      specContainer.innerHTML = '<span style="color:var(--text-muted);font-size:.8rem">该学科暂无细分专业</span>';
+      return;
+    }
+
+    specContainer.innerHTML = allSpecs.map(s =>
+      `<button class="onboarding__tag ${selectedSpecs.includes(s.id) ? 'selected' : ''}" data-spec="${s.id}" title="${s.fieldLabel}">${s.label}</button>`
+    ).join('');
+
+    // Bind specialty tag click (multi-select)
+    specContainer.querySelectorAll('.onboarding__tag').forEach(btn => {
+      btn.addEventListener('click', () => btn.classList.toggle('selected'));
+    });
   }
 
   async function saveProfile() {
@@ -143,6 +199,19 @@ export function initProfileSettingsPage() {
     saveBtn.disabled = true;
     saveBtn.textContent = '保存中...';
 
+    // Collect selected subject fields (multi)
+    const selectedFields = [];
+    document.querySelectorAll('#ps-subject-fields .onboarding__tag.selected').forEach(btn => {
+      selectedFields.push(btn.dataset.field);
+    });
+
+    // Collect selected specialties (multi)
+    const selectedSpecs = [];
+    document.querySelectorAll('#ps-specialties .onboarding__tag.selected').forEach(btn => {
+      selectedSpecs.push(btn.dataset.spec);
+    });
+
+    // Collect interest tags
     const selectedTags = [];
     document.querySelectorAll('#ps-tags .onboarding__tag.selected').forEach(btn => {
       selectedTags.push(btn.dataset.tag);
@@ -150,8 +219,8 @@ export function initProfileSettingsPage() {
 
     const updates = {
       exam_type: document.getElementById('ps-exam-type').value || undefined,
-      subject_field: document.getElementById('ps-subject-field').value || undefined,
-      specialty: document.getElementById('ps-specialty').value || undefined,
+      subject_field: selectedFields.length ? selectedFields : undefined,
+      specialty: selectedSpecs.length ? selectedSpecs : undefined,
       eng_level: document.getElementById('ps-eng-level').value || undefined,
       interest_tags: selectedTags.length ? selectedTags : undefined,
     };
