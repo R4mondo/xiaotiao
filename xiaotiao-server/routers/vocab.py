@@ -302,6 +302,56 @@ def delete_vocab(vocab_id: str, db = Depends(get_db)):
     return {"status": "ok"}
 
 
+@router.put(
+    "/batch-mastery",
+    summary="批量切换掌握状态",
+    description="批量标记或取消标记多个生词为已掌握。",
+)
+def batch_toggle_mastery(body: dict, db = Depends(get_db)):
+    ids = body.get("ids", [])
+    mastered = body.get("is_mastered", True)
+    if not ids:
+        raise HTTPException(status_code=400, detail="请提供词汇ID列表。")
+    updated = 0
+    for vid in ids:
+        srs = db.execute(text("SELECT id FROM vocabulary_srs_states WHERE vocab_id = :vid"), {"vid": vid}).fetchone()
+        if srs:
+            db.execute(text("UPDATE vocabulary_srs_states SET is_mastered = :m WHERE vocab_id = :vid"),
+                       {"m": 1 if mastered else 0, "vid": vid})
+        else:
+            srs_id = str(uuid.uuid4())
+            db.execute(text("""
+                INSERT INTO vocabulary_srs_states (id, vocab_id, traversal_count, ease_factor, interval_days, next_review_date, is_mastered)
+                VALUES (:id, :vid, 0, 2.5, 1, :now, :m)
+            """), {"id": srs_id, "vid": vid, "now": datetime.now().isoformat(), "m": 1 if mastered else 0})
+        updated += 1
+    db.commit()
+    return {"status": "ok", "updated": updated, "is_mastered": mastered}
+
+
+@router.put(
+    "/{vocab_id}/mastery",
+    summary="切换掌握状态",
+    description="标记或取消标记某生词为已掌握。",
+)
+def toggle_mastery(vocab_id: str, body: dict, db = Depends(get_db)):
+    mastered = body.get("is_mastered", False)
+    # Check if SRS state exists
+    srs = db.execute(text("SELECT id FROM vocabulary_srs_states WHERE vocab_id = :vid"), {"vid": vocab_id}).fetchone()
+    if srs:
+        db.execute(text("""
+            UPDATE vocabulary_srs_states SET is_mastered = :m WHERE vocab_id = :vid
+        """), {"m": 1 if mastered else 0, "vid": vocab_id})
+    else:
+        srs_id = str(uuid.uuid4())
+        db.execute(text("""
+            INSERT INTO vocabulary_srs_states (id, vocab_id, traversal_count, ease_factor, interval_days, next_review_date, is_mastered)
+            VALUES (:id, :vid, 0, 2.5, 1, :now, :m)
+        """), {"id": srs_id, "vid": vocab_id, "now": datetime.now().isoformat(), "m": 1 if mastered else 0})
+    db.commit()
+    return {"status": "ok", "is_mastered": mastered}
+
+
 CONCEPT_ANALYSIS_PROMPT = """You are a bilingual English-Chinese vocabulary expert. Given an English word or short phrase, provide a clear, educational analysis.
 
 Return a JSON object with this structure:

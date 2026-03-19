@@ -41,7 +41,7 @@ export function renderVocabPage() {
       </div>
 
       <!-- Actions -->
-      <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn--primary" id="btn-add-word" style="padding:6px 14px;font-size:0.85rem;">
           <span class="material-symbols-rounded" style="font-size:16px;">add</span> 添加新词
         </button>
@@ -49,6 +49,14 @@ export function renderVocabPage() {
           <span class="material-symbols-rounded" style="font-size:16px;">upload_file</span> 上传词汇文件
         </button>
         <input type="file" id="vocab-file-input" style="display:none;" accept=".txt,.md,.csv,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg">
+      </div>
+
+      <!-- Batch Actions Bar -->
+      <div id="vocab-batch-bar" style="display:none;padding:10px 16px;margin-bottom:12px;background:var(--glass-bg);border:1px solid rgba(88,86,214,0.3);border-radius:12px;align-items:center;gap:12px;">
+        <span style="color:var(--text-primary);font-size:0.9rem;font-weight:600;" id="batch-count-label">已选 0 项</span>
+        <button class="btn btn--primary btn--sm" id="btn-batch-master" style="padding:4px 12px;font-size:0.82rem;">✅ 批量标为已掌握</button>
+        <button class="btn btn--secondary btn--sm" id="btn-batch-unmaster" style="padding:4px 12px;font-size:0.82rem;">🔄 批量标为未掌握</button>
+        <button class="btn btn--ghost btn--sm" id="btn-batch-cancel" style="padding:4px 12px;font-size:0.82rem;margin-left:auto;">取消选择</button>
       </div>
 
       <div class="vocab-main">
@@ -107,6 +115,7 @@ export function renderVocabPage() {
               <table class="glass-table">
                 <thead>
                   <tr>
+                    <th style="width:36px;"><input type="checkbox" id="vocab-select-all" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"></th>
                     <th>单词</th>
                     <th>中文释义</th>
                     <th class="col-domain">专业领域</th>
@@ -299,6 +308,83 @@ export async function initVocabPage() {
     document.getElementById('btn-next-page').addEventListener('click', () => {
         currentVocabPage++; loadVocabList();
     });
+
+    // Select-all checkbox
+    document.getElementById('vocab-select-all').addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.vocab-row-check').forEach(cb => cb.checked = checked);
+        updateBatchBar();
+    });
+
+    // Delegated checkbox change for batch bar
+    document.getElementById('vocab-table-body').addEventListener('change', (e) => {
+        if (e.target.classList.contains('vocab-row-check')) updateBatchBar();
+    });
+
+    // Batch mastery buttons
+    document.getElementById('btn-batch-master').addEventListener('click', () => batchSetMastery(true));
+    document.getElementById('btn-batch-unmaster').addEventListener('click', () => batchSetMastery(false));
+    document.getElementById('btn-batch-cancel').addEventListener('click', () => {
+        document.querySelectorAll('.vocab-row-check').forEach(cb => cb.checked = false);
+        document.getElementById('vocab-select-all').checked = false;
+        updateBatchBar();
+    });
+}
+
+// ── Mastery Toggle ────────────────────────
+
+window.__toggleMastery = async (id, setMastered) => {
+    try {
+        const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
+        const res = await authFetch(`${API_BASE}/vocab/${id}/mastery`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_mastered: setMastered })
+        });
+        if (!res.ok) throw new Error('Failed');
+        showToast(setMastered ? '已标为掌握 ✅' : '已标为未掌握', 'success');
+        loadVocabStats();
+        loadVocabList();
+    } catch (e) {
+        showToast('操作失败: ' + e.message, 'error');
+    }
+};
+
+function updateBatchBar() {
+    const checks = document.querySelectorAll('.vocab-row-check:checked');
+    const bar = document.getElementById('vocab-batch-bar');
+    if (checks.length > 0) {
+        bar.style.display = 'flex';
+        document.getElementById('batch-count-label').textContent = `已选 ${checks.length} 项`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+async function batchSetMastery(mastered) {
+    const checks = document.querySelectorAll('.vocab-row-check:checked');
+    const ids = [...checks].map(cb => cb.dataset.id);
+    if (ids.length === 0) return;
+
+    try {
+        const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const API_BASE = RAW_API_BASE.replace(/\/api\/v1\/?$/, '');
+        const res = await authFetch(`${API_BASE}/vocab/batch-mastery`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, is_mastered: mastered })
+        });
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        showToast(`已${mastered ? '标为掌握' : '取消掌握'} ${data.updated} 个词汇`, 'success');
+        document.getElementById('vocab-select-all').checked = false;
+        updateBatchBar();
+        loadVocabStats();
+        loadVocabList();
+    } catch (e) {
+        showToast('批量操作失败: ' + e.message, 'error');
+    }
 }
 
 function updateDateNavVisibility() {
@@ -436,7 +522,10 @@ async function loadVocabList() {
             tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text-muted);">该分类暂无生词。</td></tr>';
         } else {
             tbody.innerHTML = data.items.map(item => `
-                <tr style="border-bottom:1px solid rgba(0,0,0,0.04);transition:background 0.2s;">
+                <tr style="border-bottom:1px solid rgba(0,0,0,0.04);transition:background 0.2s;" data-vocab-id="${item.id}">
+                    <td style="padding:14px 8px 14px 20px;width:36px;">
+                        <input type="checkbox" class="vocab-row-check" data-id="${item.id}" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+                    </td>
                     <td style="padding:14px 20px;">
                         <span style="font-weight:600;font-size:1.05rem;color:var(--text-primary);">${escapeHtml(item.word)}</span>
                         <span style="color:var(--text-secondary);font-size:0.8rem;margin-left:6px;">${item.part_of_speech || ''}</span>
@@ -457,7 +546,10 @@ async function loadVocabList() {
                     <td style="padding:14px 20px;">
                         ${getStatusBadge(item)}
                     </td>
-                    <td style="padding:14px 20px;">
+                    <td style="padding:14px 20px;white-space:nowrap;">
+                        <button class="icon-btn" onclick="window.__toggleMastery('${item.id}', ${!item.is_mastered})" title="${item.is_mastered ? '取消掌握' : '标为已掌握'}" style="background:transparent;border:none;cursor:pointer;color:${item.is_mastered ? '#4ade80' : 'var(--text-muted)'};">
+                            <span class="material-symbols-rounded" style="font-size:20px;">${item.is_mastered ? 'check_circle' : 'radio_button_unchecked'}</span>
+                        </button>
                         <button class="icon-btn" onclick="window.__deleteVocab('${item.id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);">
                             <span class="material-symbols-rounded" style="font-size:20px;">delete</span>
                         </button>

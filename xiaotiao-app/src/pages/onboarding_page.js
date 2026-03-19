@@ -52,8 +52,8 @@ export function renderOnboardingPage() {
             ${STEPS.map((_, i) => `<div class="onboarding__dot${i === 0 ? ' active' : ''}" data-step="${i}"></div>`).join('')}
           </div>
           <div class="onboarding__actions">
-            <button class="btn btn--ghost" id="onboarding-skip">跳过</button>
             <button class="btn btn--ghost" id="onboarding-back" style="display:none;">← 上一步</button>
+            <button class="btn btn--ghost" id="onboarding-skip" style="opacity:0.6;font-size:0.85rem;">跳过</button>
             <button class="btn btn--primary" id="onboarding-next">下一步 →</button>
           </div>
         </div>
