@@ -3193,6 +3193,119 @@ textarea.form-input {
   & .hero__badge { color: var(--text-accent); }
   /* Footer */
   & .footer { color: var(--text-muted); }
+
+  /* ── V2.1: Onboarding ────────── */
+  & .onboarding__card { background: var(--glass-bg); border-color: rgba(255,255,255,0.1); }
+  & .onboarding__title { color: var(--text-primary); }
+  & .onboarding__subtitle { color: var(--text-secondary); }
+  & .onboarding__option {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text-primary);
+  }
+  & .onboarding__option:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.12); }
+  & .onboarding__option.selected { border-color: var(--accent); background: rgba(255,255,255,0.12); color: var(--text-primary); }
+  & .onboarding__tag {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text-primary);
+  }
+  & .onboarding__tag:hover { background: rgba(255,255,255,0.15); }
+  & .onboarding__tag.selected { border-color: var(--accent); background: rgba(255,255,255,0.15); color: var(--text-primary); }
+  & .onboarding__level-card {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+  }
+  & .onboarding__level-card:hover { border-color: rgba(255,255,255,0.25); }
+  & .onboarding__level-card.selected { border-color: var(--accent); background: rgba(255,255,255,0.10); }
+  & .onboarding__level-label { color: var(--text-primary); }
+  & .onboarding__level-desc { color: var(--text-secondary); }
+  & .onboarding__empty { color: var(--text-muted); }
+  & #custom-specialty-input {
+    background: rgba(255,255,255,0.08) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: var(--text-primary) !important;
+  }
+  & #custom-specialty-input::placeholder { color: var(--text-muted) !important; }
+
+  /* ── V2.1: Glass Table (Vocab, etc.) ────────── */
+  & .glass-table { color: var(--text-primary); }
+  & .glass-table th { color: var(--text-secondary); }
+  & .glass-table td { color: var(--text-primary); border-bottom-color: rgba(255,255,255,0.05); }
+  & .glass-table tbody tr:hover { background: rgba(255,255,255,0.05); }
+  & .glass-table-wrap { background: var(--glass-bg); border-color: rgba(255,255,255,0.1); }
+
+  /* ── V2.1: Vocab Page ────────── */
+  & .vocab-shell { color: var(--text-primary); }
+  & .vocab-stat-card { background: var(--glass-bg); border-color: rgba(255,255,255,0.1); }
+  & .vocab-stat-card__value { color: var(--text-primary); }
+  & .vocab-stat-card__label { color: var(--text-secondary); }
+  & .vocab-sidebar__title { color: var(--text-secondary); }
+  & .vocab-nav-item { color: var(--text-secondary); }
+  & .vocab-nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+  & .vocab-nav-item.active { background: rgba(255,255,255,0.10); color: var(--text-primary); }
+  & .icon-btn { color: var(--text-muted) !important; }
+  & .icon-btn:hover { color: var(--text-primary) !important; }
+
+  /* ── V2.1: Modals ────────── */
+  & .modal-glass { background: var(--glass-bg-solid); }
+  & .modal-glass h3, & .modal-glass h2 { color: var(--text-primary); }
+  & .modal-glass label { color: var(--text-secondary); }
+  & .modal-glass input, & .modal-glass select, & .modal-glass textarea {
+    background: var(--glass-bg-input);
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text-primary);
+  }
+  & .modal-glass input::placeholder { color: var(--text-muted); }
+
+  /* ── V2.1: Config Panels ────────── */
+  & .config-strip { background: var(--glass-bg); border-color: rgba(255,255,255,0.1); }
+  & .config-section__title { color: var(--text-primary); }
+  & .config-chip { background: rgba(255,255,255,0.08); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
+  & .config-chip.active { border-color: var(--accent); }
+  & .config-chip:hover { background: rgba(255,255,255,0.12); }
+
+  /* ── V2.1: Pagination & Search ────────── */
+  & .pagination-info { color: var(--text-secondary); }
+  & #vocab-search { background: var(--glass-bg-input); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
+  & #vocab-search::placeholder { color: var(--text-muted); }
+  & #vocab-domain-filter { background: var(--glass-bg-input); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
+  & #vocab-date-label { color: var(--text-primary) !important; }
+
+  /* ── V2.1: Batch Bar ────────── */
+  & #vocab-batch-bar { background: var(--glass-bg); border-color: rgba(255,255,255,0.15); }
+  & #batch-count-label { color: var(--text-primary) !important; }
+
+  /* ── V2.1: Buttons ────────── */
+  & .btn--ghost { color: var(--text-primary); }
+  & .btn--secondary { color: var(--text-primary); background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+  & .btn--secondary:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── V2.1: Profile Settings ────────── */
+  & .settings-card { background: var(--glass-bg); color: var(--text-primary); }
+  & .settings-card label { color: var(--text-secondary); }
+
+  /* ── V2.1: Translation & Article ────────── */
+  & .gen-article__section-title { color: var(--text-primary); }
+  & .gen-article__translation { color: var(--text-secondary) !important; }
+
+  /* ── V2.1: History Cards ────────── */
+  & .history-card { background: var(--glass-bg); border-color: rgba(255,255,255,0.08); color: var(--text-primary); }
+  & .history-card__topic { color: var(--text-primary); }
+  & .history-card__preview { color: var(--text-secondary); }
+  & .history-card__meta { color: var(--text-muted); }
+  & .history-card__tag { color: var(--text-muted); background: rgba(255,255,255,0.08); }
+
+  /* ── V2.1: Word highlighting in dark mode ── */
+  & .hl-word--db { color: #60a5fa; background: rgba(96, 165, 250, 0.12); border-bottom-color: rgba(96, 165, 250, 0.4); }
+  & .hl-word--db:hover { background: rgba(96, 165, 250, 0.20); }
+  & .hl-word--new { color: #fb923c; background: rgba(251, 146, 60, 0.12); border-bottom-color: rgba(251, 146, 60, 0.4); }
+  & .hl-word--new:hover { background: rgba(251, 146, 60, 0.20); }
+
+  /* ── V2.1: Generic catch-all for remaining inline styles ── */
+  & [style*="color:var(--text-muted)"] { color: var(--text-muted) !important; }
+  & [style*="color:var(--text-primary)"] { color: var(--text-primary) !important; }
+  & [style*="color:var(--text-secondary)"] { color: var(--text-secondary) !important; }
 }
 
 /* ══════════════════════════════════════════════
